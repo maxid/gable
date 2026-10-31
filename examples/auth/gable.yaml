@@ -1,0 +1,16 @@
+app:
+  name: auth-example
+  env: development
+
+log:
+  dir: logs
+  level: info
+  format: text
+
+http:
+  addr: ":8083"
+
+tenant:
+  mode: single
+  root_id: 1
+  root_code: management

@@ -28,6 +28,10 @@ error codes. It composes the g\* library family instead of hiding it.
 - **A SQL-first ORM.** `sqlx` + a small dialect layer, typed repositories,
   tenant-scoped queries, `gcosid` keys and `AutoMigrate` for MySQL and
   PostgreSQL.
+- **Authentication and OAuth2.** Password login, JWT or opaque access tokens,
+  rotating opaque refresh tokens, bearer middleware, passport-compatible
+  responses, OAuth2 token/introspection endpoints and a PKCE client for social
+  login.
 - **A validated DSL for low-code resources.** `gable/v1` Model/Table/Form/Page
   resources, lint, DDL and `lcdp.ir/v1` previews, an idempotent `apply`, a
   dynamic `/dsl/data/<model>` CRUD API and MCP tools. This is the contract an
@@ -80,6 +84,8 @@ func main() {
 | `tenant` | single/saas resolution, context, host login rules, impersonation |
 | `orm` | sqlx-backed repositories, tenant guard, migrations, gcosid keys |
 | `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply |
+| `auth` | password/JWT/opaque tokens, refresh rotation, passport endpoints |
+| `auth/oauthclient` | authorization-code + PKCE client for social providers |
 
 ## HTTP in five lines
 
@@ -161,6 +167,26 @@ The data API accepts vamis CRUD parameters (`page`, `perPage`, `orderBy`,
 `orderDir`) and enforces the Model's tenant guard. The database store,
 diff/revision and the Api/Mcp kinds are the next slice.
 
+## Authentication
+
+```go
+service, _ := auth.NewTokenService(auth.Config{Secret: "change-me"}, users, clients, nil)
+handlers := auth.NewHandlers(service, tenant.NewSingleLoginResolver(cfg.Tenant))
+server.Register(handlers)
+server.Use(handlers.Middleware()) // protected routes registered after this
+```
+
+- `POST /passport/login` returns the frontend's camelCase `TokenVO`
+  (`accessToken`, `refreshToken`, `expiresIn`, `key`, `needChangePassword`, …).
+- `AUTH_FORMAT=opaque` (or `AccessOpaque`) issues the platform's
+  `client:username:userType:uuid` access token; `JWT` is the default.
+- `POST /oauth2/token` supports `password`, `refresh_token` and
+  `client_credentials`; `/oauth2/introspect` and `/oauth2/revoke` are included.
+- Refresh tokens rotate; logout removes the session marker and refresh token.
+- `auth/oauthclient` handles authorization-code + PKCE for external providers;
+  the application maps the external profile to a local user and calls
+  `TokenService`.
+
 ## Examples
 
 - `examples/hello` — minimal HTTP app with OpenAPI and Swagger UI.
@@ -168,10 +194,14 @@ diff/revision and the Api/Mcp kinds are the next slice.
 - `examples/pilot` — tenant-scoped task board: full CRUD, memory/ORM stores,
   single/saas modes, OpenAPI; runnable without a database.
 - `examples/dsl` — model/table/form/page resources with lint and IR preview.
+- `examples/auth` — password login, protected route, OAuth2 token/introspection,
+  JWT and opaque modes.
 
 ## Planned
 - DSL: database store, diff/revision, Api/Mcp kinds.
 - `ai` / `mcp`: adapters over the `gai` and `gmcp` libraries.
+- OAuth2 authorization server (authorize + PKCE + consent + JWKS/OIDC metadata);
+  social callbacks and sessions on top of `auth/oauthclient`.
 - `lowcode`: serve the IR and the vamis SDK from an app.
 - ORM: relations/preload, soft delete, ClickHouse/DM/TDengine dialects.
 - `cli`: `gable gen`, `gable migrate` (in addition to `new`/`dev`).

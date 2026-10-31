@@ -133,6 +133,12 @@ func New(opts ...Option) *Server {
 	return server
 }
 
+// Use adds gin middleware to the server. Call it before registering the routes
+// it should protect.
+func (s *Server) Use(middleware ...gin.HandlerFunc) {
+	s.engine.Use(middleware...)
+}
+
 // Register adds controllers to the server.
 func (s *Server) Register(controllers ...Controller) *Server {
 	for _, controller := range controllers {

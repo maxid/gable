@@ -14,6 +14,10 @@
 - [x] DSL: runtime data API (/dsl/data/<model>) with tenant guard and vamis params
 - [x] DSL: MCP tools (schema/lint/preview/apply)
 - [ ] DSL: database store, diff/revision, Api/Mcp kinds
+- [x] Auth core: password, JWT/opaque access, opaque refresh rotation, bearer middleware
+- [x] Passport-compatible Login/refresh/logout + OAuth2 token/introspection/revocation endpoints
+- [x] OAuth2 client: authorization code + PKCE
+- [ ] OAuth2 authorization server (authorize/PKCE/consent/JWKS/OIDC metadata)
 - [ ] `gai` and `gmcp` adapters
 - [ ] Low-code resources compiled to the LCDP IR
 - [x] CLI: `new`, `dev`, `version`

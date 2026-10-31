@@ -21,3 +21,7 @@ All notable changes to this project will be documented in this file.
 - DSL runtime: dynamic `/dsl/data/<model>` CRUD with tenant guard, vamis
   pagination aliases and `gable dsl serve`; MCP tools over stdio
   (`gable dsl mcp`).
+- Auth: password login, JWT/opaque access tokens, opaque refresh rotation,
+  bearer middleware, passport-compatible Login/refresh/logout, OAuth2
+  token/introspection/revocation endpoints and an authorization-code + PKCE
+  client for social providers.
