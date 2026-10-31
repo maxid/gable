@@ -10,7 +10,8 @@
 - [x] ORM core: models, query builder, CRUD, tenant guard, gcosid keys, AutoMigrate (MySQL/PostgreSQL)
 - [ ] ORM: relations/Preload, soft delete/retain, ClickHouse/DM/TDengine dialects
 - [x] Pilot: tenant-scoped task board (single/saas, memory/ORM, OpenAPI)
-- [ ] DSL resources (file/database storage)
+- [x] DSL: Model/Table/Form/Page, lint, DDL/IR preview, idempotent apply (file store)
+- [ ] DSL: database store, runtime data API, MCP tools
 - [ ] `gai` and `gmcp` adapters
 - [ ] Low-code resources compiled to the LCDP IR
 - [x] CLI: `new`, `dev`, `version`

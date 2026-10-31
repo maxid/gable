@@ -16,3 +16,5 @@ All notable changes to this project will be documented in this file.
 - Pilot example: tenant-scoped task board with memory/ORM stores, single/saas
   modes, CRUD and OpenAPI.
 - Fix: pagination now inserts a space before `LIMIT` when an `ORDER BY` is present.
+- DSL first slice: `gable/v1` Model/Table/Form/Page, lint, Model DDL,
+  `lcdp.ir/v1` previews, idempotent file apply and `gable dsl` commands.

@@ -1,0 +1,11 @@
+apiVersion: gable/v1
+kind: Table
+metadata:
+  name: task.table
+  title: Tasks
+spec:
+  model: task
+  columns:
+    - {field: title, sortable: true}
+    - {field: status, sortable: true}
+    - {field: created_at, sortable: true}

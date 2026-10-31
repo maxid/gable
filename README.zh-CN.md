@@ -19,6 +19,8 @@
   可选运营方代入；租户守卫 fail-closed。
 - **SQL 优先的轻 ORM**：`sqlx` + 小方言层、类型化 Repository、租户过滤、`gcosid` 发号，
   MySQL/PostgreSQL 的 `AutoMigrate`。
+- **可校验的 DSL**：`gable/v1` 的 Model/Table/Form/Page、lint、DDL 与 `lcdp.ir/v1` 预览、
+  幂等 `apply`；这是 AI 可以不碰 Go 代码就生成与修复的契约。
 
 ## 快速开始
 
@@ -66,6 +68,7 @@ func main() {
 | `web` | Gin MVC、包络、绑定/校验、OpenAPI 与 Swagger UI |
 | `tenant` | single/saas 解析、上下文、登录 Host 规则、代入 |
 | `orm` | sqlx Repository、租户守卫、迁移、gcosid 主键 |
+| `dsl` | gable/v1 资源、lint、DDL、低码 IR、apply |
 
 ## 五行接入 HTTP
 
@@ -114,17 +117,36 @@ users, err := repo.Query().Where(orm.Eq("name", "alice")).All(ctx)
 `db.AutoMigrate(model)` 只创建缺失表。MySQL DSN 需带 `parseTime=true`，否则 `DATETIME`/`TIMESTAMP`
 无法扫描进 `time.Time`。
 
+## DSL
+
+```bash
+gable dsl lint --dir resources
+gable dsl preview Model/task --dir resources --dialect postgres
+gable dsl preview Page/task.page --dir resources --format yaml
+gable dsl apply --dir resources --out .gable/dsl
+```
+
+首刀覆盖 `Model`、`Table`、`Form`、`Page`：
+
+- `Model` → 规范化字段 + `CREATE TABLE`。
+- `Table`/`Form` → `lcdp.ir/v1` 的 `TableDef`/`FormDef`。
+- `Page` → vamis 可直接渲染的 `UiPage` widget 树。
+
+`apply` 先校验、再写规范化资源，幂等。数据库存储、运行时数据 API
+（`/dsl/data/<model>`）与 MCP 工具是下一刀；lint/preview/apply 已经是 AI 的契约面。
+
 ## 示例
 
 - `examples/hello`：最小 HTTP 应用，带 OpenAPI/Swagger。
 - `examples/tenant`：SaaS 模式，Host 登录、主体租户、代入。
 - `examples/pilot`：租户任务看板，完整 CRUD、内存/ORM 双存储、single/saas、OpenAPI，
   无数据库也能跑。
+- `examples/dsl`：model/table/form/page 资源，lint 与 IR 预览。
 
 ## 规划中
-- `dsl`：模型/页面资源的运行时加载，文件或数据库存储。
+- DSL：数据库存储、运行时数据 API（`/dsl/data/<model>`）、MCP 工具。
 - `ai` / `mcp`：对 `gai` 与 `gmcp` 的适配。
-- `lowcode`：页面/表格/表单资源编译为 LCDP IR。
+- `lowcode`：由应用托管 IR 与 vamis SDK。
 - ORM：关系/Preload、软删、ClickHouse/达梦/TDengine 方言。
 - `cli`：`gable gen`、`gable migrate`（在 `new`/`dev` 之外）。
 

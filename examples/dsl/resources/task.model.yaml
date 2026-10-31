@@ -1,0 +1,15 @@
+apiVersion: gable/v1
+kind: Model
+metadata:
+  name: task
+  title: Task
+  description: tenant-scoped task used by the DSL example
+spec:
+  table: dsl_task
+  fields:
+    - {name: id, type: int64, primary: true, generator: snowflake}
+    - {name: tenant_id, type: int64, tenant: true}
+    - {name: title, type: string, size: 128, required: true, label: Title}
+    - {name: status, type: string, size: 16, enum: [todo, doing, done], default: todo, label: Status}
+    - {name: created_at, type: time, autoCreate: true}
+    - {name: updated_at, type: time, autoUpdate: true}

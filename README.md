@@ -28,6 +28,9 @@ error codes. It composes the g\* library family instead of hiding it.
 - **A SQL-first ORM.** `sqlx` + a small dialect layer, typed repositories,
   tenant-scoped queries, `gcosid` keys and `AutoMigrate` for MySQL and
   PostgreSQL.
+- **A validated DSL for low-code resources.** `gable/v1` Model/Table/Form/Page
+  resources, lint, DDL and `lcdp.ir/v1` previews, and an idempotent `apply`.
+  This is the contract an AI can generate and repair without touching Go code.
 
 ## Quick start
 
@@ -75,6 +78,7 @@ func main() {
 | `web` | Gin-backed MVC, envelope, binding/validation, OpenAPI + Swagger UI |
 | `tenant` | single/saas resolution, context, host login rules, impersonation |
 | `orm` | sqlx-backed repositories, tenant guard, migrations, gcosid keys |
+| `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply |
 
 ## HTTP in five lines
 
@@ -126,17 +130,37 @@ mismatched tenant fails closed. `repo.Unscoped()` is the explicit escape hatch.
 `db.AutoMigrate(model)` creates missing tables only. MySQL DSNs should set
 `parseTime=true` so `DATETIME`/`TIMESTAMP` columns scan into `time.Time`.
 
+## DSL
+
+```bash
+gable dsl lint --dir resources
+gable dsl preview Model/task --dir resources --dialect postgres
+gable dsl preview Page/task.page --dir resources --format yaml
+gable dsl apply --dir resources --out .gable/dsl
+```
+
+The first slice covers `Model`, `Table`, `Form` and `Page`:
+
+- `Model` → normalized fields plus a `CREATE TABLE` statement.
+- `Table`/`Form` → `lcdp.ir/v1` `TableDef`/`FormDef`.
+- `Page` → a `UiPage` widget tree for vamis.
+
+`apply` validates, writes normalized resources and is idempotent. The database
+store, the runtime data API (`/dsl/data/<model>`) and MCP tools are the next
+slice; the lint/preview/apply loop is already the AI-facing contract.
+
 ## Examples
 
 - `examples/hello` — minimal HTTP app with OpenAPI and Swagger UI.
 - `examples/tenant` — SaaS mode: host login, principal tenant, impersonation.
 - `examples/pilot` — tenant-scoped task board: full CRUD, memory/ORM stores,
   single/saas modes, OpenAPI; runnable without a database.
+- `examples/dsl` — model/table/form/page resources with lint and IR preview.
 
 ## Planned
-- `dsl`: runtime model/page resources with file or database storage.
+- DSL: database store, runtime data API (`/dsl/data/<model>`), MCP tools.
 - `ai` / `mcp`: adapters over the `gai` and `gmcp` libraries.
-- `lowcode`: page/table/form resources compiled to the LCDP IR.
+- `lowcode`: serve the IR and the vamis SDK from an app.
 - ORM: relations/preload, soft delete, ClickHouse/DM/TDengine dialects.
 - `cli`: `gable gen`, `gable migrate` (in addition to `new`/`dev`).
 

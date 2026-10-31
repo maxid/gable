@@ -1,0 +1,10 @@
+apiVersion: gable/v1
+kind: Form
+metadata:
+  name: task.form
+  title: Task form
+spec:
+  model: task
+  fields:
+    - {field: title, controlType: INPUT, required: true}
+    - {field: status, controlType: SELECT}

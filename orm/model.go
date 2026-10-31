@@ -23,6 +23,7 @@ type Field struct {
 	AutoCreate bool
 	AutoUpdate bool
 	Unique     bool
+	Text       bool
 	Size       int
 }
 

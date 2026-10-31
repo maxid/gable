@@ -1,0 +1,8 @@
+apiVersion: gable/v1
+kind: Page
+metadata:
+  name: task.page
+  title: Task board
+spec:
+  table: task.table
+  form: task.form

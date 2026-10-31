@@ -1,0 +1,238 @@
+package dsl
+
+import (
+	"fmt"
+	"regexp"
+	"strings"
+)
+
+var (
+	resourceNameRE = regexp.MustCompile(`^[a-z][a-z0-9._-]*$`)
+	identifierRE   = regexp.MustCompile(`^[a-z_][a-z0-9_]*$`)
+)
+
+var fieldTypes = map[string]bool{
+	"int64":   true,
+	"int32":   true,
+	"string":  true,
+	"text":    true,
+	"bool":    true,
+	"float64": true,
+	"time":    true,
+	"json":    true,
+}
+
+var controlTypes = map[string]bool{
+	"INPUT":        true,
+	"TEXTAREA":     true,
+	"SELECT":       true,
+	"TREE_SELECT":  true,
+	"NUMBER":       true,
+	"INPUT_NUMBER": true,
+	"SWITCH":       true,
+	"DATE":         true,
+	"DATETIME":     true,
+	"CHECKBOX":     true,
+	"RADIO":        true,
+	"RADIOS":       true,
+}
+
+// Lint validates every resource and the references between them.
+func (s *Set) Lint() Issues {
+	var issues Issues
+	for _, name := range sortedKeys(s.Models) {
+		doc := s.Models[name]
+		issues = append(issues, envelopeIssues(KindModel, doc.APIVersion, doc.Kind, doc.Metadata)...)
+		issues = append(issues, lintModel(doc)...)
+	}
+	for _, name := range sortedKeys(s.Tables) {
+		doc := s.Tables[name]
+		issues = append(issues, envelopeIssues(KindTable, doc.APIVersion, doc.Kind, doc.Metadata)...)
+		issues = append(issues, s.lintTable(doc)...)
+	}
+	for _, name := range sortedKeys(s.Forms) {
+		doc := s.Forms[name]
+		issues = append(issues, envelopeIssues(KindForm, doc.APIVersion, doc.Kind, doc.Metadata)...)
+		issues = append(issues, s.lintForm(doc)...)
+	}
+	for _, name := range sortedKeys(s.Pages) {
+		doc := s.Pages[name]
+		issues = append(issues, envelopeIssues(KindPage, doc.APIVersion, doc.Kind, doc.Metadata)...)
+		issues = append(issues, s.lintPage(doc)...)
+	}
+	return issues
+}
+
+func envelopeIssues(expected Kind, apiVersion string, kind Kind, metadata Metadata) Issues {
+	var issues Issues
+	resource := string(expected) + "/" + metadata.Name
+	if apiVersion != APIVersion {
+		issues = append(issues, Issue{Resource: resource, Message: fmt.Sprintf("apiVersion must be %s", APIVersion)})
+	}
+	if kind != expected {
+		issues = append(issues, Issue{Resource: resource, Message: fmt.Sprintf("kind must be %s", expected)})
+	}
+	if !resourceNameRE.MatchString(metadata.Name) {
+		issues = append(issues, Issue{Resource: resource, Message: "metadata.name must match ^[a-z][a-z0-9._-]*$"})
+	}
+	return issues
+}
+
+func lintModel(doc *ModelDoc) Issues {
+	resource := string(KindModel) + "/" + doc.Metadata.Name
+	var issues Issues
+	if !identifierRE.MatchString(doc.TableName()) {
+		issues = append(issues, Issue{Resource: resource, Field: "spec.table", Message: "table must be a snake_case identifier (set spec.table when the resource name contains dots)"})
+	}
+	if len(doc.Spec.Fields) == 0 {
+		issues = append(issues, Issue{Resource: resource, Field: "spec.fields", Message: "at least one field is required"})
+		return issues
+	}
+
+	seen := map[string]bool{}
+	primary, tenant := 0, 0
+	for index, field := range doc.Spec.Fields {
+		fieldResource := fmt.Sprintf("%s.fields[%d]", resource, index)
+		if !identifierRE.MatchString(field.Name) {
+			issues = append(issues, Issue{Resource: fieldResource, Field: "name", Message: "must be a snake_case identifier"})
+			continue
+		}
+		if seen[field.Name] {
+			issues = append(issues, Issue{Resource: fieldResource, Field: "name", Message: "duplicate field"})
+		}
+		seen[field.Name] = true
+
+		if !fieldTypes[field.Type] {
+			issues = append(issues, Issue{Resource: fieldResource, Field: "type", Message: fmt.Sprintf("unsupported type %q", field.Type)})
+			continue
+		}
+		if field.Primary {
+			primary++
+			if field.Type != "int64" {
+				issues = append(issues, Issue{Resource: fieldResource, Field: "type", Message: "primary key must be int64"})
+			}
+			switch field.Generator {
+			case "", "snowflake", "auto", "none":
+			default:
+				issues = append(issues, Issue{Resource: fieldResource, Field: "generator", Message: fmt.Sprintf("unsupported generator %q", field.Generator)})
+			}
+		} else if field.Generator != "" {
+			issues = append(issues, Issue{Resource: fieldResource, Field: "generator", Message: "generator is only valid on a primary key"})
+		}
+		if field.Tenant {
+			tenant++
+			if field.Type != "int64" {
+				issues = append(issues, Issue{Resource: fieldResource, Field: "type", Message: "tenant field must be int64"})
+			}
+		}
+		if field.AutoCreate || field.AutoUpdate {
+			if field.Type != "time" {
+				issues = append(issues, Issue{Resource: fieldResource, Field: "type", Message: "autoCreate/autoUpdate fields must be time"})
+			}
+		}
+		if len(field.Enum) > 0 {
+			if field.Type != "string" {
+				issues = append(issues, Issue{Resource: fieldResource, Field: "enum", Message: "enum is only valid on string fields"})
+			}
+			if field.Default != nil {
+				value := fmt.Sprint(field.Default)
+				found := false
+				for _, candidate := range field.Enum {
+					if candidate == value {
+						found = true
+						break
+					}
+				}
+				if !found {
+					issues = append(issues, Issue{Resource: fieldResource, Field: "default", Message: "default must be one of enum"})
+				}
+			}
+		}
+		if field.Type == "string" && field.Size < 0 {
+			issues = append(issues, Issue{Resource: fieldResource, Field: "size", Message: "size must not be negative"})
+		}
+	}
+	if primary == 0 {
+		issues = append(issues, Issue{Resource: resource, Field: "spec.fields", Message: "exactly one primary field is required"})
+	} else if primary > 1 {
+		issues = append(issues, Issue{Resource: resource, Field: "spec.fields", Message: "only one primary field is allowed"})
+	}
+	if tenant > 1 {
+		issues = append(issues, Issue{Resource: resource, Field: "spec.fields", Message: "only one tenant field is allowed"})
+	}
+	return issues
+}
+
+func (s *Set) lintTable(doc *TableDoc) Issues {
+	resource := string(KindTable) + "/" + doc.Metadata.Name
+	var issues Issues
+	model, ok := s.Models[doc.Spec.Model]
+	if !ok {
+		issues = append(issues, Issue{Resource: resource, Field: "spec.model", Message: fmt.Sprintf("unknown model %q", doc.Spec.Model)})
+		return issues
+	}
+	if doc.Spec.RuntimeAPI != "" && !strings.HasPrefix(doc.Spec.RuntimeAPI, "/") {
+		issues = append(issues, Issue{Resource: resource, Field: "spec.runtimeApi", Message: "must start with /"})
+	}
+	seen := map[string]bool{}
+	for index, column := range doc.Spec.Columns {
+		fieldResource := fmt.Sprintf("%s.columns[%d]", resource, index)
+		if seen[column.Field] {
+			issues = append(issues, Issue{Resource: fieldResource, Field: "field", Message: "duplicate column"})
+		}
+		seen[column.Field] = true
+		if model.Field(column.Field) == nil {
+			issues = append(issues, Issue{Resource: fieldResource, Field: "field", Message: fmt.Sprintf("unknown model field %q", column.Field)})
+		}
+	}
+	for index, filter := range doc.Spec.Filters {
+		if model.Field(filter) == nil {
+			issues = append(issues, Issue{Resource: fmt.Sprintf("%s.filters[%d]", resource, index), Message: fmt.Sprintf("unknown model field %q", filter)})
+		}
+	}
+	return issues
+}
+
+func (s *Set) lintForm(doc *FormDoc) Issues {
+	resource := string(KindForm) + "/" + doc.Metadata.Name
+	var issues Issues
+	model, ok := s.Models[doc.Spec.Model]
+	if !ok {
+		issues = append(issues, Issue{Resource: resource, Field: "spec.model", Message: fmt.Sprintf("unknown model %q", doc.Spec.Model)})
+		return issues
+	}
+	seen := map[string]bool{}
+	for index, field := range doc.Spec.Fields {
+		fieldResource := fmt.Sprintf("%s.fields[%d]", resource, index)
+		if seen[field.Field] {
+			issues = append(issues, Issue{Resource: fieldResource, Field: "field", Message: "duplicate field"})
+		}
+		seen[field.Field] = true
+		if model.Field(field.Field) == nil {
+			issues = append(issues, Issue{Resource: fieldResource, Field: "field", Message: fmt.Sprintf("unknown model field %q", field.Field)})
+		}
+		if field.ControlType != "" && !controlTypes[strings.ToUpper(field.ControlType)] {
+			issues = append(issues, Issue{Resource: fieldResource, Field: "controlType", Message: fmt.Sprintf("unsupported control type %q", field.ControlType)})
+		}
+	}
+	return issues
+}
+
+func (s *Set) lintPage(doc *PageDoc) Issues {
+	resource := string(KindPage) + "/" + doc.Metadata.Name
+	var issues Issues
+	if doc.Spec.Table == "" && doc.Spec.Form == "" {
+		issues = append(issues, Issue{Resource: resource, Field: "spec", Message: "a page needs a table or a form"})
+	}
+	if doc.Spec.Table != "" {
+		if _, ok := s.Tables[doc.Spec.Table]; !ok {
+			issues = append(issues, Issue{Resource: resource, Field: "spec.table", Message: fmt.Sprintf("unknown table %q", doc.Spec.Table)})
+		}
+	}
+	if doc.Spec.Form != "" {
+		if _, ok := s.Forms[doc.Spec.Form]; !ok {
+			issues = append(issues, Issue{Resource: resource, Field: "spec.form", Message: fmt.Sprintf("unknown form %q", doc.Spec.Form)})
+		}
+	}
+	return issues
+}

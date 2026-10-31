@@ -45,6 +45,10 @@ func columnType(field Field, dialect Dialect) string {
 		typ = typ.Elem()
 	}
 
+	if field.Text {
+		return "TEXT"
+	}
+
 	switch typ.Kind() {
 	case reflect.Int, reflect.Int64, reflect.Uint, reflect.Uint64:
 		if field.PK && field.Auto {
