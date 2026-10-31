@@ -22,6 +22,12 @@ error codes. It composes the g\* library family instead of hiding it.
   envelope, binding/validation, request ids, panic recovery and access logs;
   springdoc-shaped OpenAPI 3.0.1 at `/v3/api-docs` with grouped documents and
   a Swagger UI.
+- **Multi-tenancy is configurable.** `single` runs as the root tenant; `saas`
+  resolves the login tenant from the host and the request tenant from the
+  principal, with optional operator impersonation. Tenant scope fails closed.
+- **A SQL-first ORM.** `sqlx` + a small dialect layer, typed repositories,
+  tenant-scoped queries, `gcosid` keys and `AutoMigrate` for MySQL and
+  PostgreSQL.
 
 ## Quick start
 
@@ -67,6 +73,8 @@ func main() {
 | `log` | `glogs` logger construction |
 | `errors` | stable error codes and HTTP status |
 | `web` | Gin-backed MVC, envelope, binding/validation, OpenAPI + Swagger UI |
+| `tenant` | single/saas resolution, context, host login rules, impersonation |
+| `orm` | sqlx-backed repositories, tenant guard, migrations, gcosid keys |
 
 ## HTTP in five lines
 
@@ -79,12 +87,49 @@ app.Register(web.NewModule(server, "")) // listens on config.http.addr
 `GET /v3/api-docs` serves the OpenAPI document, `GET /v3/api-docs/{group}` a
 group, and `GET /swagger-ui/index.html` the UI.
 
-## Planned
+## Multi-tenancy
 
-- `orm`: dialect-aware models, query builder and migrations (MySQL/PostgreSQL first).
+```go
+// single: every request is the root tenant
+server.UseTenant(tenant.NewSingleResolver(cfg.Tenant))
+
+// saas: resolve the request tenant from the authenticated principal
+source := tenant.SourceFunc(func(ctx context.Context, r *http.Request) (tenant.Principal, bool, error) {
+    return principalFromToken(r) // your auth middleware
+})
+resolver, _ := tenant.NewSaaSResolver(cfg.Tenant, store, source)
+server.UseTenant(resolver)
+```
+
+`tenant.NewSaaSLoginResolver` implements the login order: exact host, label
+under `base_domain`, leftmost DNS label, explicit `tenantCode`, then the root
+tenant. A conflicting or unknown explicit code is rejected, never silently
+mapped to the root. Operators may impersonate with the configured header
+(`X-Tenant-Id` by default), validated against the store.
+
+## ORM
+
+```go
+type User struct {
+    ID       int64     `gable:"pk"`
+    TenantID int64     `gable:"tenant"`
+    Name     string    `gable:"size=64"`
+    Created  time.Time `gable:"auto_create"`
+}
+
+repo, _ := orm.NewRepo[User](db, "sys_user", orm.WithIDGenerator(ids))
+users, err := repo.Query().Where(orm.Eq("name", "alice")).All(ctx)
+```
+
+The tenant predicate is injected from `tenant.FromContext`; a missing or
+mismatched tenant fails closed. `repo.Unscoped()` is the explicit escape hatch.
+`db.AutoMigrate(model)` creates missing tables only.
+
+## Planned
 - `dsl`: runtime model/page resources with file or database storage.
 - `ai` / `mcp`: adapters over the `gai` and `gmcp` libraries.
 - `lowcode`: page/table/form resources compiled to the LCDP IR.
+- ORM: relations/preload, soft delete, ClickHouse/DM/TDengine dialects.
 - `cli`: `gable gen`, `gable migrate` (in addition to `new`/`dev`).
 
 ## Install

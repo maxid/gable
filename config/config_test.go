@@ -51,6 +51,38 @@ func TestLoadBytesExpandsEnvironment(t *testing.T) {
 	}
 }
 
+func TestTenantDefaultsAndOverrides(t *testing.T) {
+	cfg, err := LoadBytes([]byte("app:\n  name: demo\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Tenant.Mode != "single" || cfg.Tenant.RootID != 1 || cfg.Tenant.RootCode != "management" {
+		t.Fatalf("tenant = %+v", cfg.Tenant)
+	}
+
+	t.Setenv("GABLE_TENANT_MODE", "saas")
+	t.Setenv("GABLE_TENANT_ROOT_ID", "5")
+	t.Setenv("GABLE_TENANT_ROOT_CODE", "root")
+	t.Setenv("GABLE_TENANT_BASE_DOMAIN", "example.com")
+	cfg, err = LoadBytes([]byte("app:\n  name: demo\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Tenant.Mode != "saas" || cfg.Tenant.RootID != 5 || cfg.Tenant.RootCode != "root" || cfg.Tenant.BaseDomain != "example.com" {
+		t.Fatalf("tenant = %+v", cfg.Tenant)
+	}
+}
+
+func TestTenantYAMLKeepsDefaults(t *testing.T) {
+	cfg, err := LoadBytes([]byte("app:\n  name: demo\ntenant:\n  mode: saas\n  base_domain: example.com\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Tenant.Mode != "saas" || cfg.Tenant.RootID != 1 || cfg.Tenant.RootCode != "management" {
+		t.Fatalf("tenant = %+v", cfg.Tenant)
+	}
+}
+
 func TestValidateRejectsBadValues(t *testing.T) {
 	cases := []string{
 		"app:\n  name: ''\n",

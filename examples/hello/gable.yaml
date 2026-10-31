@@ -9,3 +9,8 @@ log:
 
 http:
   addr: ":8080"
+
+tenant:
+  mode: single
+  root_id: 1
+  root_code: management

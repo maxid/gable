@@ -1,0 +1,6 @@
+2026-10-31 22:41:20.190 INFO  [access] http request method=GET path=/login/options route=/login/options status=200 duration_ms=0 request_id=510961770f431b8f client_ip=127.0.0.1
+2026-10-31 22:41:20.198 INFO  [access] http request method=GET path=/login/options route=/login/options status=400 duration_ms=0 request_id=498980cf3a208b47 client_ip=127.0.0.1
+2026-10-31 22:41:20.206 INFO  [access] http request method=GET path=/login/options route=/login/options status=400 duration_ms=0 request_id=97685214fa1815d7 client_ip=127.0.0.1
+2026-10-31 22:41:20.214 INFO  [access] http request method=GET path=/whoami route=/whoami status=200 duration_ms=0 request_id=4404e8da2d0ffd40 client_ip=127.0.0.1
+2026-10-31 22:41:20.223 INFO  [access] http request method=GET path=/whoami route=/whoami status=200 duration_ms=0 request_id=d1381878595acc53 client_ip=127.0.0.1
+2026-10-31 22:41:20.232 INFO  [access] http request method=GET path=/whoami route=/whoami status=400 duration_ms=0 request_id=b55740a00a983fbe client_ip=127.0.0.1

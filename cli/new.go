@@ -123,6 +123,7 @@ import (
 
 	"github.com/maxid/gable"
 	"github.com/maxid/gable/config"
+	"github.com/maxid/gable/tenant"
 	"github.com/maxid/gable/web"
 )
 
@@ -144,6 +145,11 @@ func (helloController) Routes(r *web.Router) {
 	r.GET("/hello/:name", func(c *web.Context) error {
 		return c.JSON(200, map[string]string{"message": "hello " + c.Param("name")})
 	}).Doc("say hello")
+
+	r.GET("/whoami", func(c *web.Context) error {
+		resolved, _ := c.Tenant()
+		return c.JSON(200, map[string]any{"tenantId": resolved.ID, "tenantCode": resolved.Code})
+	}).Doc("current tenant")
 }
 
 func main() {
@@ -156,6 +162,7 @@ func main() {
 		web.WithTitle(%q),
 		web.WithVersion(gable.Version),
 	)
+	server.UseTenant(tenant.NewSingleResolver(cfg.Tenant))
 	server.Register(helloController{})
 
 	app := gable.New(gable.WithConfig(cfg))
@@ -191,6 +198,11 @@ http:
 db:
   max_open: 20
   max_idle: 5
+
+tenant:
+  mode: single
+  root_id: 1
+  root_code: management
 `, name)
 }
 

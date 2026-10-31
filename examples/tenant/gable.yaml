@@ -1,0 +1,20 @@
+app:
+  name: tenant-example
+  env: development
+
+log:
+  dir: logs
+  level: info
+  format: text
+
+http:
+  addr: ":8081"
+
+tenant:
+  mode: saas
+  root_id: 1
+  root_code: management
+  base_domain: example.com
+  header: X-Tenant-Id
+  root_fallback: true
+  reject_unknown_host: true

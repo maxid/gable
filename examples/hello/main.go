@@ -8,6 +8,7 @@ import (
 
 	"github.com/maxid/gable"
 	"github.com/maxid/gable/config"
+	"github.com/maxid/gable/tenant"
 	"github.com/maxid/gable/web"
 )
 
@@ -21,6 +22,11 @@ func (helloController) Routes(r *web.Router) {
 	r.GET("/hello/:name", func(c *web.Context) error {
 		return c.JSON(200, helloResponse{Message: "hello " + c.Param("name")})
 	}).Doc("say hello").Out(helloResponse{})
+
+	r.GET("/whoami", func(c *web.Context) error {
+		resolved, _ := c.Tenant()
+		return c.JSON(200, map[string]any{"tenantId": resolved.ID, "tenantCode": resolved.Code})
+	}).Doc("current tenant")
 }
 
 func main() {
@@ -34,6 +40,7 @@ func main() {
 		web.WithVersion(gable.Version),
 		web.WithDescription("gable example application"),
 	)
+	server.UseTenant(tenant.NewSingleResolver(cfg.Tenant))
 	server.Register(helloController{})
 
 	app := gable.New(gable.WithConfig(cfg))

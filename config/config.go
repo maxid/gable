@@ -4,10 +4,13 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/maxid/gable/tenant"
 )
 
 // Duration is a YAML-friendly time.Duration.
@@ -43,10 +46,11 @@ func (d Duration) Std() time.Duration { return time.Duration(d) }
 
 // Config is the application configuration.
 type Config struct {
-	App  App  `yaml:"app"`
-	Log  Log  `yaml:"log"`
-	HTTP HTTP `yaml:"http"`
-	DB   DB   `yaml:"db"`
+	App    App           `yaml:"app"`
+	Log    Log           `yaml:"log"`
+	HTTP   HTTP          `yaml:"http"`
+	DB     DB            `yaml:"db"`
+	Tenant tenant.Config `yaml:"tenant"`
 }
 
 // App identifies the application.
@@ -87,7 +91,8 @@ func Default() *Config {
 			ReadTimeout:  Duration(10 * time.Second),
 			WriteTimeout: Duration(10 * time.Second),
 		},
-		DB: DB{MaxOpen: 20, MaxIdle: 5},
+		DB:     DB{MaxOpen: 20, MaxIdle: 5},
+		Tenant: tenant.DefaultConfig(),
 	}
 }
 
@@ -136,6 +141,9 @@ func (c *Config) Validate() error {
 	if c.DB.MaxOpen < 0 || c.DB.MaxIdle < 0 {
 		return fmt.Errorf("config: db.max_open and db.max_idle must not be negative")
 	}
+	if err := c.Tenant.Validate(); err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
 	return nil
 }
 
@@ -148,6 +156,17 @@ func applyEnv(c *Config) {
 	setString(&c.HTTP.Addr, "GABLE_HTTP_ADDR")
 	setString(&c.DB.Driver, "GABLE_DB_DRIVER")
 	setString(&c.DB.DSN, "GABLE_DB_DSN")
+	if mode, ok := os.LookupEnv("GABLE_TENANT_MODE"); ok {
+		c.Tenant.Mode = tenant.Mode(mode)
+	}
+	setString(&c.Tenant.RootCode, "GABLE_TENANT_ROOT_CODE")
+	setString(&c.Tenant.BaseDomain, "GABLE_TENANT_BASE_DOMAIN")
+	setString(&c.Tenant.Header, "GABLE_TENANT_HEADER")
+	if raw, ok := os.LookupEnv("GABLE_TENANT_ROOT_ID"); ok {
+		if id, err := strconv.ParseInt(raw, 10, 64); err == nil && id > 0 {
+			c.Tenant.RootID = id
+		}
+	}
 }
 
 func setString(target *string, key string) {

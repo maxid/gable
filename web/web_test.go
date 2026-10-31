@@ -15,6 +15,7 @@ import (
 	"github.com/maxid/gable"
 	"github.com/maxid/gable/config"
 	gableerrors "github.com/maxid/gable/errors"
+	"github.com/maxid/gable/tenant"
 )
 
 func TestMain(m *testing.M) {
@@ -324,5 +325,30 @@ func TestModuleWithApp(t *testing.T) {
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", response.StatusCode)
+	}
+}
+
+type tenantController struct{}
+
+func (tenantController) Routes(r *Router) {
+	r.GET("/tenant", func(c *Context) error {
+		resolved, ok := c.Tenant()
+		if !ok {
+			return gableerrors.New(gableerrors.CodeInternal, "tenant missing")
+		}
+		return c.JSON(http.StatusOK, map[string]any{"id": resolved.ID, "code": resolved.Code})
+	})
+}
+
+func TestTenantMiddleware(t *testing.T) {
+	server := New(WithTitle("tenant"))
+	server.UseTenant(tenant.NewSingleResolver(tenant.DefaultConfig()))
+	server.Register(tenantController{})
+
+	recorder := perform(server, http.MethodGet, "/tenant", nil, nil)
+	envelope := decodeEnvelope(t, recorder.Body.Bytes())
+	data, _ := envelope.Data.(map[string]any)
+	if data["code"] != "management" {
+		t.Fatalf("tenant data = %+v", envelope.Data)
 	}
 }
