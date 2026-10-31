@@ -12,6 +12,7 @@ require (
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/maxid/gcosid v0.0.0-20261031112445-cbc7c57c79f7
 	github.com/maxid/glogs v0.0.0-20261029144859-382e4fa15661
+	github.com/maxid/gmcp v0.0.0-20261031135746-ee92dfdfe8c1
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
 )

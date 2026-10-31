@@ -1,15 +1,23 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/signal"
 	"strings"
 
+	"github.com/maxid/gcosid"
+	"github.com/maxid/gmcp"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/maxid/gable"
 	"github.com/maxid/gable/dsl"
 	"github.com/maxid/gable/orm"
+	"github.com/maxid/gable/tenant"
+	"github.com/maxid/gable/web"
 )
 
 func newDSLCommand() *cobra.Command {
@@ -17,7 +25,7 @@ func newDSLCommand() *cobra.Command {
 		Use:   "dsl",
 		Short: "lint, preview and apply gable DSL resources",
 	}
-	cmd.AddCommand(newDSLLintCommand(), newDSLPreviewCommand(), newDSLApplyCommand())
+	cmd.AddCommand(newDSLLintCommand(), newDSLPreviewCommand(), newDSLApplyCommand(), newDSLMCPCommand(), newDSLServeCommand())
 	return cmd
 }
 
@@ -146,4 +154,110 @@ func splitResource(value string) (dsl.Kind, string, error) {
 	default:
 		return "", "", fmt.Errorf("dsl: unsupported kind %q", parts[0])
 	}
+}
+
+func newDSLMCPCommand() *cobra.Command {
+	var dir string
+	cmd := &cobra.Command{
+		Use:   "mcp",
+		Short: "serve the DSL tools over MCP stdio",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			service, err := dsl.NewService(dir)
+			if err != nil {
+				return err
+			}
+			// The MCP server must start even with lint issues: dsl.lint is how
+			// an agent discovers and repairs them.
+			server := gmcp.NewServer("gable-dsl")
+			server.SetVersion(gable.Version)
+			if err := service.AddTo(server); err != nil {
+				return err
+			}
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+			defer stop()
+			return server.Serve(ctx, os.Stdin, os.Stdout)
+		},
+	}
+	cmd.Flags().StringVar(&dir, "dir", ".", "DSL directory")
+	return cmd
+}
+
+func newDSLServeCommand() *cobra.Command {
+	var (
+		dir      string
+		driver   string
+		dsn      string
+		addr     string
+		rootID   int64
+		rootCode string
+		machine  int64
+	)
+	cmd := &cobra.Command{
+		Use:   "serve",
+		Short: "serve the dynamic /dsl/data API for the resources",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if dsn == "" {
+				return fmt.Errorf("dsl: --dsn is required (mysql or postgres)")
+			}
+			service, err := dsl.NewService(dir)
+			if err != nil {
+				return err
+			}
+			if issues := service.Lint(); len(issues) > 0 {
+				return issues
+			}
+
+			db, err := orm.Open(driver, dsn)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+			db.Configure(20, 5)
+
+			ids, err := gcosid.NewSnowflake(gcosid.MillisecondLayout, machine)
+			if err != nil {
+				return err
+			}
+			runtime, err := dsl.NewRuntime(db, service.Set(), dsl.WithDefaultIDGenerator(ids))
+			if err != nil {
+				return err
+			}
+			if err := runtime.Migrate(context.Background()); err != nil {
+				return err
+			}
+
+			cfg := tenant.DefaultConfig()
+			cfg.RootID = rootID
+			cfg.RootCode = rootCode
+
+			server := web.New(
+				web.WithTitle("gable-dsl"),
+				web.WithVersion(gable.Version),
+				web.WithDescription("dynamic data API for gable DSL resources"),
+			)
+			server.UseTenant(tenant.NewSingleResolver(cfg))
+			runtime.Routes(server.Router(), "/dsl/data")
+
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+			defer stop()
+			if err := server.Start(ctx, addr); err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), "listening on", server.Addr())
+			<-ctx.Done()
+			shutdown, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			return server.Stop(shutdown)
+		},
+	}
+	cmd.Flags().StringVar(&dir, "dir", ".", "DSL directory")
+	cmd.Flags().StringVar(&driver, "driver", "mysql", "mysql | postgres")
+	cmd.Flags().StringVar(&dsn, "dsn", "", "database DSN")
+	cmd.Flags().StringVar(&addr, "addr", ":8088", "listen address")
+	cmd.Flags().Int64Var(&rootID, "root-id", 1, "root tenant id")
+	cmd.Flags().StringVar(&rootCode, "root-code", "management", "root tenant code")
+	cmd.Flags().Int64Var(&machine, "machine-id", 1, "gcosid snowflake machine id")
+	return cmd
 }

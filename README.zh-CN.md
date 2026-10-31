@@ -20,7 +20,8 @@
 - **SQL 优先的轻 ORM**：`sqlx` + 小方言层、类型化 Repository、租户过滤、`gcosid` 发号，
   MySQL/PostgreSQL 的 `AutoMigrate`。
 - **可校验的 DSL**：`gable/v1` 的 Model/Table/Form/Page、lint、DDL 与 `lcdp.ir/v1` 预览、
-  幂等 `apply`；这是 AI 可以不碰 Go 代码就生成与修复的契约。
+  幂等 `apply`、动态 `/dsl/data/<model>` CRUD 与 MCP 工具；AI 可以不碰 Go 代码就生成、检查、
+  应用并驱动。
 
 ## 快速开始
 
@@ -132,8 +133,18 @@ gable dsl apply --dir resources --out .gable/dsl
 - `Table`/`Form` → `lcdp.ir/v1` 的 `TableDef`/`FormDef`。
 - `Page` → vamis 可直接渲染的 `UiPage` widget 树。
 
-`apply` 先校验、再写规范化资源，幂等。数据库存储、运行时数据 API
-（`/dsl/data/<model>`）与 MCP 工具是下一刀；lint/preview/apply 已经是 AI 的契约面。
+`apply` 先校验、再写规范化资源，幂等。运行时数据 API 与 MCP 工具也已可用：
+
+```bash
+# 动态 CRUD：GET/POST /dsl/data/task，GET/PUT/DELETE /dsl/data/task/{id}
+gable dsl serve --dir resources --dsn 'user:pass@tcp(127.0.0.1:3306)/app?parseTime=true'
+
+# MCP stdio 工具面：dsl.schema / dsl.lint / dsl.preview / dsl.apply
+gable dsl mcp --dir resources
+```
+
+数据 API 兼容 vamis CRUD 的 `page/perPage/orderBy/orderDir` 参数，并执行 Model 的租户守卫。
+数据库存储、diff/revision 与 Api/Mcp kind 是下一刀。
 
 ## 示例
 
@@ -144,7 +155,7 @@ gable dsl apply --dir resources --out .gable/dsl
 - `examples/dsl`：model/table/form/page 资源，lint 与 IR 预览。
 
 ## 规划中
-- DSL：数据库存储、运行时数据 API（`/dsl/data/<model>`）、MCP 工具。
+- DSL：数据库存储、diff/revision、Api/Mcp kind。
 - `ai` / `mcp`：对 `gai` 与 `gmcp` 的适配。
 - `lowcode`：由应用托管 IR 与 vamis SDK。
 - ORM：关系/Preload、软删、ClickHouse/达梦/TDengine 方言。

@@ -29,8 +29,9 @@ error codes. It composes the g\* library family instead of hiding it.
   tenant-scoped queries, `gcosid` keys and `AutoMigrate` for MySQL and
   PostgreSQL.
 - **A validated DSL for low-code resources.** `gable/v1` Model/Table/Form/Page
-  resources, lint, DDL and `lcdp.ir/v1` previews, and an idempotent `apply`.
-  This is the contract an AI can generate and repair without touching Go code.
+  resources, lint, DDL and `lcdp.ir/v1` previews, an idempotent `apply`, a
+  dynamic `/dsl/data/<model>` CRUD API and MCP tools. This is the contract an
+  AI can generate, inspect, apply and drive without touching Go code.
 
 ## Quick start
 
@@ -145,9 +146,20 @@ The first slice covers `Model`, `Table`, `Form` and `Page`:
 - `Table`/`Form` → `lcdp.ir/v1` `TableDef`/`FormDef`.
 - `Page` → a `UiPage` widget tree for vamis.
 
-`apply` validates, writes normalized resources and is idempotent. The database
-store, the runtime data API (`/dsl/data/<model>`) and MCP tools are the next
-slice; the lint/preview/apply loop is already the AI-facing contract.
+`apply` validates, writes normalized resources and is idempotent. The runtime
+data API and MCP tools are available too:
+
+```bash
+# dynamic CRUD: GET/POST /dsl/data/task, GET/PUT/DELETE /dsl/data/task/{id}
+gable dsl serve --dir resources --dsn 'user:pass@tcp(127.0.0.1:3306)/app?parseTime=true'
+
+# AI tool surface over MCP stdio: dsl.schema / dsl.lint / dsl.preview / dsl.apply
+gable dsl mcp --dir resources
+```
+
+The data API accepts vamis CRUD parameters (`page`, `perPage`, `orderBy`,
+`orderDir`) and enforces the Model's tenant guard. The database store,
+diff/revision and the Api/Mcp kinds are the next slice.
 
 ## Examples
 
@@ -158,7 +170,7 @@ slice; the lint/preview/apply loop is already the AI-facing contract.
 - `examples/dsl` — model/table/form/page resources with lint and IR preview.
 
 ## Planned
-- DSL: database store, runtime data API (`/dsl/data/<model>`), MCP tools.
+- DSL: database store, diff/revision, Api/Mcp kinds.
 - `ai` / `mcp`: adapters over the `gai` and `gmcp` libraries.
 - `lowcode`: serve the IR and the vamis SDK from an app.
 - ORM: relations/preload, soft delete, ClickHouse/DM/TDengine dialects.

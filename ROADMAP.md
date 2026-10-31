@@ -11,7 +11,9 @@
 - [ ] ORM: relations/Preload, soft delete/retain, ClickHouse/DM/TDengine dialects
 - [x] Pilot: tenant-scoped task board (single/saas, memory/ORM, OpenAPI)
 - [x] DSL: Model/Table/Form/Page, lint, DDL/IR preview, idempotent apply (file store)
-- [ ] DSL: database store, runtime data API, MCP tools
+- [x] DSL: runtime data API (/dsl/data/<model>) with tenant guard and vamis params
+- [x] DSL: MCP tools (schema/lint/preview/apply)
+- [ ] DSL: database store, diff/revision, Api/Mcp kinds
 - [ ] `gai` and `gmcp` adapters
 - [ ] Low-code resources compiled to the LCDP IR
 - [x] CLI: `new`, `dev`, `version`

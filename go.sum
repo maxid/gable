@@ -118,6 +118,8 @@ github.com/maxid/gcosid v0.0.0-20261031112445-cbc7c57c79f7 h1:3AHSZh7TRDwa0QlqH6
 github.com/maxid/gcosid v0.0.0-20261031112445-cbc7c57c79f7/go.mod h1:qc4RHNHJ/o8HMaYEudQLDLHsKpnW1+SyPD81Am0qq0c=
 github.com/maxid/glogs v0.0.0-20261029144859-382e4fa15661 h1:kK3WDg+bS0MffBVQFqmUDBAHE/vwbqsimMlcu+XyPdM=
 github.com/maxid/glogs v0.0.0-20261029144859-382e4fa15661/go.mod h1:tfffGhtAHnR2lbO58Zfr/W9VE/hZkbpPfuRX6QAgOUY=
+github.com/maxid/gmcp v0.0.0-20261031135746-ee92dfdfe8c1 h1:9nEBQtD2fS2+TpNdbbdaHwxV6xNYgCnfxfIyXsHJ+lo=
+github.com/maxid/gmcp v0.0.0-20261031135746-ee92dfdfe8c1/go.mod h1:qwdlhEvbwFGokNl0TwH5XYJ2NaBR3xmdpNsQVAxzxfY=
 github.com/mdelapenya/tlscert v0.2.0 h1:7H81W6Z/4weDvZBNOfQte5GpIMo0lGYEeWbkGp5LJHI=
 github.com/mdelapenya/tlscert v0.2.0/go.mod h1:O4njj3ELLnJjGdkN7M/vIVCpZ+Cf0L6muqOG4tLSl8o=
 github.com/moby/docker-image-spec v1.3.1 h1:jMKff3w6PgbfSa69GfNg+zN/XLhfXJGnEx3Nl2EsFP0=

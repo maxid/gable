@@ -18,3 +18,6 @@ All notable changes to this project will be documented in this file.
 - Fix: pagination now inserts a space before `LIMIT` when an `ORDER BY` is present.
 - DSL first slice: `gable/v1` Model/Table/Form/Page, lint, Model DDL,
   `lcdp.ir/v1` previews, idempotent file apply and `gable dsl` commands.
+- DSL runtime: dynamic `/dsl/data/<model>` CRUD with tenant guard, vamis
+  pagination aliases and `gable dsl serve`; MCP tools over stdio
+  (`gable dsl mcp`).
