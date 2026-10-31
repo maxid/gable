@@ -336,6 +336,8 @@ github.com/matttproud/golang_protobuf_extensions v1.0.1 h1:4hp9jkHxhMHkqkrB3Ix0j
 github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5Ld7szi9bcBfOoFv/3dc6xSMkL2PC0=
 github.com/maxid/gcache v0.0.0-20261031175109-38127d1462a9 h1:JA/VP11TANjElzuJ2BMw0y4et5fg/Mt0o033R/h9gNs=
 github.com/maxid/gcache v0.0.0-20261031175109-38127d1462a9/go.mod h1:T5Tjydi69c9FE3LHrXlk0aHN1XRvQwzoZttRFid/A6c=
+github.com/maxid/gcache v0.0.0-20261031175843-f61b108fc349 h1:LxakOVvl+WaDMLjwOMrEvaesfX2E60wJooseVtPPYlg=
+github.com/maxid/gcache v0.0.0-20261031175843-f61b108fc349/go.mod h1:T5Tjydi69c9FE3LHrXlk0aHN1XRvQwzoZttRFid/A6c=
 github.com/maxid/gcosid v0.0.0-20261031112445-cbc7c57c79f7 h1:3AHSZh7TRDwa0QlqH6+eDbZSm2231wz6gBQPZHoa3oY=
 github.com/maxid/gcosid v0.0.0-20261031112445-cbc7c57c79f7/go.mod h1:qc4RHNHJ/o8HMaYEudQLDLHsKpnW1+SyPD81Am0qq0c=
 github.com/maxid/glogs v0.0.0-20261029144859-382e4fa15661 h1:kK3WDg+bS0MffBVQFqmUDBAHE/vwbqsimMlcu+XyPdM=

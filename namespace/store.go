@@ -58,7 +58,7 @@ func (s *Store) Save(ctx context.Context, ns gns.Namespace) error {
 	if err != nil {
 		return fmt.Errorf("gable/namespace: encode %s: %w", ns.Name, err)
 	}
-	return s.cache.Set(ctx, key(ns.Name), value, 0)
+	return s.cache.SetPersistent(ctx, key(ns.Name), value)
 }
 
 // Delete implements gns.Store.
