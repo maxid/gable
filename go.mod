@@ -15,7 +15,7 @@ require (
 	github.com/maxid/gcosid v0.0.0-20261031112445-cbc7c57c79f7
 	github.com/maxid/glogs v0.0.0-20261029144859-382e4fa15661
 	github.com/maxid/gmcp v0.0.0-20261031135746-ee92dfdfe8c1
-	github.com/maxid/gns v0.0.0-20261031174910-7b4c3ecb463e
+	github.com/maxid/gns v0.0.0-20261031175400-9ad9adafc373
 	github.com/nacos-group/nacos-sdk-go/v2 v2.3.5
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.57.0

@@ -20,6 +20,8 @@ type Store struct {
 	cache *gcache.Cache
 }
 
+var _ gns.Store = (*Store)(nil)
+
 // NewStore wraps a gcache instance.
 func NewStore(cache *gcache.Cache) (*Store, error) {
 	if cache == nil {

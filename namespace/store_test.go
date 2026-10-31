@@ -44,6 +44,26 @@ func TestStoreRoundTrip(t *testing.T) {
 	}
 }
 
+func TestStoreSatisfiesGNSSPI(t *testing.T) {
+	store := newStore(t)
+	ctx := context.Background()
+	ns, _ := gns.New("app-dev")
+	if err := store.Save(ctx, ns); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := gns.NewManager(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound, err := manager.Bind(ctx, "app-dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := gns.From(bound); !ok || got.Name != "app-dev" {
+		t.Fatalf("bound = %+v, %v", got, ok)
+	}
+}
+
 func TestStoreRejectsInvalidNamespace(t *testing.T) {
 	if err := newStore(t).Save(context.Background(), gns.Namespace{}); !errors.Is(err, gns.ErrInvalidNamespace) {
 		t.Fatalf("Save = %v", err)
