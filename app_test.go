@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/maxid/gns"
-
 	"github.com/maxid/gable/config"
 )
 
@@ -143,7 +141,7 @@ func TestAppNamespace(t *testing.T) {
 	if app.Namespace().Root != "gable" || app.Namespace().Cache != "gable" {
 		t.Fatalf("namespace = %+v", app.Namespace())
 	}
-	if _, ok := Resolve[gns.Set](app.Container(), "gable.namespace"); !ok {
+	if _, ok := Resolve[config.Namespace](app.Container(), "gable.namespace"); !ok {
 		t.Fatal("namespace not in container")
 	}
 }

@@ -6,13 +6,14 @@ import (
 
 	"github.com/maxid/gcache"
 
-	"github.com/maxid/gns"
+	"github.com/maxid/gable/config"
 )
 
-// New creates a cache. An empty config namespace inherits set.CacheName().
-func New(set gns.Set, cfg gcache.Config, opts ...gcache.Option) (*gcache.Cache, error) {
+// New creates a cache. An empty config namespace inherits the gable cache
+// prefix (namespace.cache).
+func New(ns config.Namespace, cfg gcache.Config, opts ...gcache.Option) (*gcache.Cache, error) {
 	if strings.TrimSpace(cfg.Namespace) == "" {
-		cfg.Namespace = set.CacheName()
+		cfg.Namespace = ns.CacheName()
 	}
 	return gcache.New(cfg, opts...)
 }

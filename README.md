@@ -28,9 +28,9 @@ error codes. It composes the g\* library family instead of hiding it.
 - **A SQL-first ORM.** `sqlx` + a small dialect layer, typed repositories,
   tenant-scoped queries, `gcosid` keys and `AutoMigrate` for MySQL and
   PostgreSQL.
-- **One namespace, derived everywhere.** `gns` turns a root name into cache
-  prefixes, Flyway history tables, CosID segments, Kafka topic/group names and
-  cluster channels; each subsystem can override it.
+- **One namespace, derived in the framework.** gable keeps the cache, Flyway,
+  CosID and cluster prefixes; `gns` only carries the namespace value/context and
+  the `Store` SPI used to persist namespace definitions.
 - **Authentication and OAuth2.** Password login, JWT or opaque access tokens,
   rotating opaque refresh tokens, bearer middleware, passport-compatible
   responses, an OAuth2 authorization server (code + PKCE, consent callback,
@@ -92,6 +92,7 @@ func main() {
 | `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply |
 | `auth` | password/JWT/opaque tokens, refresh rotation, passport endpoints, OAuth2 authorize/token |
 | `cache` | gcache constructor that inherits the application namespace |
+| `namespace` | gcache-backed `gns.Store` implementation (memory or Redis) |
 | `auth/oauthclient` | authorization-code + PKCE client for social providers |
 
 ## HTTP in five lines
@@ -210,7 +211,7 @@ namespace:
   timeSeries: app
 ```
 
-`app.Namespace()` returns the derived `gns.Set`:
+`app.Namespace()` returns gable's `config.Namespace`:
 
 ```go
 ns := app.Namespace()
@@ -221,9 +222,16 @@ ns.CosIDName()                 // app (or "" with cosid: none)
 ns.Topic("iothub_raw")         // app.iothub_raw
 ```
 
-`gable/cache.New` passes `CacheName` to gcache; auth token-store keys use the
-same namespace; `gcache`/`gbus` use `gns` internally. Flyway, CosID and cluster
-consumers receive the derived values.
+`gable/cache.New` passes `CacheName` to gcache and auth token-store keys use the
+same namespace. gns does not derive these values: it only carries
+`gns.Namespace` in a context and exposes a `Store` SPI. The `namespace` package
+implements that SPI over gcache, so the same adapter works with memory or Redis:
+
+```go
+store, _ := namespace.NewStore(cache)
+manager, _ := gns.NewManager(store)
+ctx, err := manager.Bind(ctx, "app")
+```
 
 ## Authentication
 

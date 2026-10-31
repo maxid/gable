@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/maxid/glogs"
-	"github.com/maxid/gns"
 
 	"github.com/maxid/gable/config"
 	gablelog "github.com/maxid/gable/log"
@@ -25,7 +24,7 @@ type App struct {
 	mu sync.Mutex
 
 	cfg       *config.Config
-	namespace gns.Set
+	namespace config.Namespace
 
 	container *Container
 	logger    *glogs.Logger
@@ -84,8 +83,9 @@ func (a *App) Register(module Module) error {
 	return nil
 }
 
-// Namespace returns the derived namespace set. It is populated by Start.
-func (a *App) Namespace() gns.Set { return a.namespace }
+// Namespace returns the derived namespace configuration. It is populated by
+// Start.
+func (a *App) Namespace() config.Namespace { return a.namespace }
 
 // Container returns the application container.
 func (a *App) Container() *Container { return a.container }
@@ -115,11 +115,7 @@ func (a *App) Start(ctx context.Context) error {
 	if err := a.cfg.Validate(); err != nil {
 		return err
 	}
-	ns, err := gns.New(a.cfg.Namespace)
-	if err != nil {
-		return err
-	}
-	a.namespace = ns
+	a.namespace = a.cfg.Namespace.Normalize()
 	if a.logger == nil {
 		logger, err := gablelog.New(a.cfg.Log, a.cfg.App.Name)
 		if err != nil {

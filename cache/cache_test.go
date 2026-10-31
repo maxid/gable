@@ -5,15 +5,12 @@ import (
 
 	"github.com/maxid/gcache"
 
-	"github.com/maxid/gns"
+	"github.com/maxid/gable/config"
 )
 
 func TestNewUsesNamespace(t *testing.T) {
-	set, err := gns.New(gns.Config{Root: "app"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	cache, err := New(set, gcache.Config{})
+	ns := config.Namespace{Root: "app"}.Normalize()
+	cache, err := New(ns, gcache.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}

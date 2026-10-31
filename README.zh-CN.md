@@ -19,8 +19,8 @@
   可选运营方代入；租户守卫 fail-closed。
 - **SQL 优先的轻 ORM**：`sqlx` + 小方言层、类型化 Repository、租户过滤、`gcosid` 发号，
   MySQL/PostgreSQL 的 `AutoMigrate`。
-- **一个 namespace，派生到所有子系统**：`gns` 把根名称派生成缓存前缀、Flyway 历史表、
-  CosID 段、Kafka topic/group 与集群 channel；每个子系统可单独覆盖。
+- **一个 namespace，在框架内派生**：缓存、Flyway、CosID 与集群前缀由 gable 负责；
+  `gns` 只承载 namespace 值/context 与持久化 namespace 定义的 `Store` SPI。
 - **认证与 OAuth2**：密码登录、JWT 或 opaque access token、可轮换的 opaque refresh、
   bearer 中间件、passport 兼容响应、OAuth2 授权服务器（code + PKCE、consent、metadata）、
   OIDC id_token/JWKS/userinfo、token/introspection 端点与社交登录 PKCE 客户端。
@@ -77,6 +77,7 @@ func main() {
 | `dsl` | gable/v1 资源、lint、DDL、低码 IR、apply |
 | `auth` | 密码/JWT/opaque token、refresh 轮换、passport 端点、OAuth2 authorize/token |
 | `cache` | 继承应用 namespace 的 gcache 构造器 |
+| `namespace` | gcache 驱动的 `gns.Store` 实现（内存或 Redis） |
 | `auth/oauthclient` | 社交登录的 authorization-code + PKCE 客户端 |
 
 ## 五行接入 HTTP
@@ -166,7 +167,7 @@ namespace:
   timeSeries: app
 ```
 
-`app.Namespace()` 返回派生的 `gns.Set`：
+`app.Namespace()` 返回 gable 自己的 `config.Namespace`：
 
 ```go
 ns := app.Namespace()
@@ -177,8 +178,15 @@ ns.CosIDName()                 // app（cosid: none 时为空串）
 ns.Topic("iothub_raw")         // app.iothub_raw
 ```
 
-`gable/cache.New` 把 `CacheName` 传给 gcache；auth 的 token store key 使用同一 namespace；
-`gcache`/`gbus` 内部使用 `gns`。Flyway、CosID 与 cluster 消费方直接使用派生值。
+`gable/cache.New` 把 `CacheName` 传给 gcache，auth 的 token store key 使用同一 namespace。
+gns 不再派生这些值：它只把 `gns.Namespace` 放进 context，并提供 `Store` SPI。
+`namespace` 包用 gcache 实现该 SPI，同一适配器可跑内存或 Redis：
+
+```go
+store, _ := namespace.NewStore(cache)
+manager, _ := gns.NewManager(store)
+ctx, err := manager.Bind(ctx, "app")
+```
 
 ## 认证
 

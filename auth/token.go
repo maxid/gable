@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/maxid/gns"
 )
 
 // TokenStore persists opaque access tokens and refresh tokens. Implementations
@@ -444,7 +443,11 @@ func secretEqual(want, got string) bool {
 }
 
 func (s *TokenService) tokenKey(token string) string {
-	return hashToken(gns.Join(":", s.cfg.Namespace, token))
+	key := token
+	if s.cfg.Namespace != "" {
+		key = s.cfg.Namespace + ":" + token
+	}
+	return hashToken(key)
 }
 
 func hashToken(token string) string {

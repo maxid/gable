@@ -10,8 +10,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/maxid/gns"
-
 	"github.com/maxid/gable/tenant"
 )
 
@@ -53,7 +51,7 @@ type Config struct {
 	HTTP      HTTP          `yaml:"http"`
 	DB        DB            `yaml:"db"`
 	Tenant    tenant.Config `yaml:"tenant"`
-	Namespace gns.Config    `yaml:"namespace"`
+	Namespace Namespace     `yaml:"namespace"`
 }
 
 // App identifies the application.
@@ -96,7 +94,7 @@ func Default() *Config {
 		},
 		DB:        DB{MaxOpen: 20, MaxIdle: 5},
 		Tenant:    tenant.DefaultConfig(),
-		Namespace: gns.DefaultConfig("gable"),
+		Namespace: DefaultNamespace(),
 	}
 }
 
