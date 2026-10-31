@@ -9,6 +9,7 @@
 - [x] Namespace: gns config, app exposure, cache/auth integration, gcache/gbus adoption
 - [x] Tenant: single/saas modes, host login rules, fail-closed scope, impersonation
 - [x] ORM core: models, query builder, CRUD, tenant guard, gcosid keys, AutoMigrate (MySQL/PostgreSQL)
+- [x] Migrate: Flyway-compatible history, CRC32 checksums, baseline/repair (MySQL/PostgreSQL)
 - [ ] ORM: relations/Preload, soft delete/retain, ClickHouse/DM/TDengine dialects
 - [x] Pilot: tenant-scoped task board (single/saas, memory/ORM, OpenAPI)
 - [x] DSL: Model/Table/Form/Page, lint, DDL/IR preview, idempotent apply (file store)
@@ -26,5 +27,5 @@
 - [ ] `gai` and `gmcp` adapters
 - [ ] Low-code resources compiled to the LCDP IR
 - [x] CLI: `new`, `dev`, `version`
-- [ ] CLI: `gen`, `migrate`
+- [ ] CLI: `gen`, `migrate` (the library exists; the command is not wired)
 - [ ] v1.0 API stabilization

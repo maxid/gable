@@ -172,7 +172,8 @@ namespace:
 ns := app.Namespace()
 ns.CacheName()                 // gcache namespace
 ns.FlywayTable("schema_migrations") // app_schema_migrations
-ns.Segment("sys_dict")         // app.sys_dict（cosid: none 时仍是 sys_dict）
+ns.SegmentKey("sys_dict")      // app.sys_dict（cosid: none 时仍是 sys_dict）
+ns.CosIDName()                 // app（cosid: none 时为空串）
 ns.Topic("iothub_raw")         // app.iothub_raw
 ```
 
