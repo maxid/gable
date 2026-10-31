@@ -73,7 +73,7 @@ func main() {
 |---|---|
 | `gable` | `App`, `Container`, module lifecycle |
 | `config` | typed YAML + environment configuration |
-| `log` | `glogs` logger construction |
+| `log` | `glogs` logger construction; `glogs/bridge` captures non-slog dependencies |
 | `errors` | stable error codes and HTTP status |
 | `web` | Gin-backed MVC, envelope, binding/validation, OpenAPI + Swagger UI |
 | `tenant` | single/saas resolution, context, host login rules, impersonation |
