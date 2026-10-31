@@ -2,49 +2,48 @@ package main
 
 import (
 	"context"
-	"fmt"
-
-	"github.com/maxid/glogs"
+	"log"
+	"os"
+	"os/signal"
 
 	"github.com/maxid/gable"
 	"github.com/maxid/gable/config"
+	"github.com/maxid/gable/web"
 )
 
-type helloModule struct {
-	container *gable.Container
+type helloResponse struct {
+	Message string `json:"message"`
 }
 
-func (helloModule) ID() string { return "hello" }
+type helloController struct{}
 
-func (m *helloModule) Register(c *gable.Container) error {
-	m.container = c
-	c.Set("hello.greeting", "world")
-	return nil
+func (helloController) Routes(r *web.Router) {
+	r.GET("/hello/:name", func(c *web.Context) error {
+		return c.JSON(200, helloResponse{Message: "hello " + c.Param("name")})
+	}).Doc("say hello").Out(helloResponse{})
 }
-
-func (m *helloModule) Start(context.Context) error {
-	logger := gable.MustResolve[*glogs.Logger](m.container, "gable.logger")
-	greeting := gable.MustResolve[string](m.container, "hello.greeting")
-	logger.Channel(glogs.ChannelApp).Info("hello", "greeting", greeting)
-	fmt.Println("hello", greeting)
-	return nil
-}
-
-func (helloModule) Stop(context.Context) error { return nil }
 
 func main() {
 	cfg, err := config.Load("gable.yaml")
 	if err != nil {
-		panic(err)
-	}
-	app := gable.New(gable.WithConfig(cfg))
-	if err := app.Register(&helloModule{}); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+	server := web.New(
+		web.WithTitle("hello"),
+		web.WithVersion(gable.Version),
+		web.WithDescription("gable example application"),
+	)
+	server.Register(helloController{})
+
+	app := gable.New(gable.WithConfig(cfg))
+	if err := app.Register(web.NewModule(server, "")); err != nil {
+		log.Fatal(err)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
 	if err := app.Run(ctx); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 }

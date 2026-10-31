@@ -18,6 +18,10 @@ error codes. It composes the g\* library family instead of hiding it.
   overrides, validated before anything starts.
 - **Errors carry a stable code.** Transport layers can map a code to an HTTP
   status without importing business packages.
+- **Web and docs are included.** Gin-backed routing, a six-field response
+  envelope, binding/validation, request ids, panic recovery and access logs;
+  springdoc-shaped OpenAPI 3.0.1 at `/v3/api-docs` with grouped documents and
+  a Swagger UI.
 
 ## Quick start
 
@@ -62,15 +66,26 @@ func main() {
 | `config` | typed YAML + environment configuration |
 | `log` | `glogs` logger construction |
 | `errors` | stable error codes and HTTP status |
+| `web` | Gin-backed MVC, envelope, binding/validation, OpenAPI + Swagger UI |
+
+## HTTP in five lines
+
+```go
+server := web.New(web.WithTitle("demo"))
+server.Register(myController{}) // Routes(r *web.Router)
+app.Register(web.NewModule(server, "")) // listens on config.http.addr
+```
+
+`GET /v3/api-docs` serves the OpenAPI document, `GET /v3/api-docs/{group}` a
+group, and `GET /swagger-ui/index.html` the UI.
 
 ## Planned
 
-- `web`: MVC controllers, binding/validation, response envelope, springdoc-shaped OpenAPI and Swagger UI.
 - `orm`: dialect-aware models, query builder and migrations (MySQL/PostgreSQL first).
 - `dsl`: runtime model/page resources with file or database storage.
 - `ai` / `mcp`: adapters over the `gai` and `gmcp` libraries.
 - `lowcode`: page/table/form resources compiled to the LCDP IR.
-- `cli`: `gable new`, `gable dev`, `gable gen`, `gable migrate`.
+- `cli`: `gable gen`, `gable migrate` (in addition to `new`/`dev`).
 
 ## Install
 

@@ -1,0 +1,1 @@
+2026-10-31 22:14:15.940 INFO  [access] http request method=GET path=/hello/app route=/hello/:name status=200 duration_ms=0 request_id=5208dc11e2fac013 client_ip=127.0.0.1

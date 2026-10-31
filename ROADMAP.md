@@ -4,11 +4,12 @@
 - [x] Typed configuration (YAML + environment)
 - [x] `glogs` logger
 - [x] Stable error codes
-- [ ] Web MVC, binding/validation, response envelope
-- [ ] springdoc-shaped OpenAPI and Swagger UI
+- [x] Web MVC, binding/validation, response envelope
+- [x] springdoc-shaped OpenAPI 3.0.1 and Swagger UI
 - [ ] ORM (MySQL/PostgreSQL first)
 - [ ] DSL resources (file/database storage)
 - [ ] `gai` and `gmcp` adapters
 - [ ] Low-code resources compiled to the LCDP IR
-- [ ] CLI: `new`, `dev`, `gen`, `migrate`
+- [x] CLI: `new`, `dev`, `version`
+- [ ] CLI: `gen`, `migrate`
 - [ ] v1.0 API stabilization

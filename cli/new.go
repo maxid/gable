@@ -123,6 +123,7 @@ import (
 
 	"github.com/maxid/gable"
 	"github.com/maxid/gable/config"
+	"github.com/maxid/gable/web"
 )
 
 type appModule struct{}
@@ -137,14 +138,31 @@ func (appModule) Register(c *gable.Container) error {
 func (appModule) Start(context.Context) error { return nil }
 func (appModule) Stop(context.Context) error  { return nil }
 
+type helloController struct{}
+
+func (helloController) Routes(r *web.Router) {
+	r.GET("/hello/:name", func(c *web.Context) error {
+		return c.JSON(200, map[string]string{"message": "hello " + c.Param("name")})
+	}).Doc("say hello")
+}
+
 func main() {
 	cfg, err := config.Load("gable.yaml")
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	server := web.New(
+		web.WithTitle(%q),
+		web.WithVersion(gable.Version),
+	)
+	server.Register(helloController{})
+
 	app := gable.New(gable.WithConfig(cfg))
 	if err := app.Register(appModule{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := app.Register(web.NewModule(server, "")); err != nil {
 		log.Fatal(err)
 	}
 
@@ -154,7 +172,7 @@ func main() {
 		log.Fatal(err)
 	}
 }
-`, name)
+`, name, name)
 }
 
 func configTemplate(name string) string {
