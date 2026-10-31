@@ -31,8 +31,8 @@ error codes. It composes the g\* library family instead of hiding it.
 - **Authentication and OAuth2.** Password login, JWT or opaque access tokens,
   rotating opaque refresh tokens, bearer middleware, passport-compatible
   responses, an OAuth2 authorization server (code + PKCE, consent callback,
-  metadata), token/introspection endpoints and a PKCE client with social
-  callbacks.
+  metadata), OIDC id_token/JWKS/userinfo, token/introspection endpoints and a
+  PKCE client with social callbacks.
 - **A validated DSL for low-code resources.** `gable/v1` Model/Table/Form/Page
   resources, lint, DDL and `lcdp.ir/v1` previews, an idempotent `apply`, a
   dynamic `/dsl/data/<model>` CRUD API and MCP tools. This is the contract an
@@ -187,6 +187,9 @@ server.Use(handlers.Middleware()) // protected routes registered after this
 - `GET/POST /oauth2/authorize` implements code + PKCE with a `Consent`
   (`Authorizer`) callback and exact redirect-uri matching; metadata is served at
   `/.well-known/oauth-authorization-server`.
+- With an RSA key configured, the code flow also issues an RS256 `id_token`
+  for the `openid` scope; `/oauth2/jwks` publishes the key and
+  `/oauth2/userinfo` returns the profile.
 - `auth/oauthclient.Handlers` adds `/oauth2/login/:provider` and
   `/oauth2/callback/:provider`; the app maps the external profile to a local
   principal.
@@ -208,7 +211,7 @@ server.Use(handlers.Middleware()) // protected routes registered after this
 ## Planned
 - DSL: database store, diff/revision, Api/Mcp kinds.
 - `ai` / `mcp`: adapters over the `gai` and `gmcp` libraries.
-- OIDC id_token/JWKS, cookie sessions, MFA; more provider presets.
+- Cookie sessions, MFA; more provider presets.
 - `lowcode`: serve the IR and the vamis SDK from an app.
 - ORM: relations/preload, soft delete, ClickHouse/DM/TDengine dialects.
 - `cli`: `gable gen`, `gable migrate` (in addition to `new`/`dev`).

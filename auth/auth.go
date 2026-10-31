@@ -31,6 +31,9 @@ type Config struct {
 	RefreshTTL   time.Duration `yaml:"refreshTTL"`
 	OpaqueFormat string        `yaml:"opaqueFormat"` // four %s: client, user, type, uuid
 	GlobalKey    string        `yaml:"globalKey"`
+	RSAKeyPEM    string        `yaml:"rsaKeyPEM"`
+	KeyID        string        `yaml:"keyID"`
+	IDTokenTTL   time.Duration `yaml:"idTokenTTL"`
 }
 
 // DefaultConfig returns development defaults.
@@ -57,6 +60,12 @@ func (c Config) Normalize() Config {
 	}
 	if c.RefreshTTL <= 0 {
 		c.RefreshTTL = 7 * 24 * time.Hour
+	}
+	if c.IDTokenTTL <= 0 {
+		c.IDTokenTTL = 5 * time.Minute
+	}
+	if c.KeyID == "" {
+		c.KeyID = "default"
 	}
 	if c.OpaqueFormat == "" {
 		c.OpaqueFormat = "%s:%s:%s:%s"
@@ -91,6 +100,8 @@ type User struct {
 	UserType     string
 	ClientID     string
 	TenantID     int64
+	Email        string
+	Name         string
 	Disabled     bool
 	Operator     bool
 	Scopes       []string
@@ -128,6 +139,8 @@ type Principal struct {
 	TenantID  int64
 	ClientID  string
 	UserType  string
+	Email     string
+	Name      string
 	Operator  bool
 	Scopes    []string
 	Roles     []string
@@ -143,6 +156,7 @@ type TokenPair struct {
 	ExpiresIn    int
 	Scope        string
 	GlobalKey    string
+	IDToken      string
 }
 
 // LoginRequest is a password login.

@@ -74,6 +74,8 @@ func (h *Handlers) Mount(router *web.Router, passportPrefix string) {
 	router.GET("/.well-known/oauth-authorization-server", h.metadata).Doc("OAuth2 server metadata")
 	router.GET("/.well-known/openid-configuration", h.metadata).Doc("OpenID configuration")
 	router.POST("/oauth2/token", h.token).Doc("OAuth2 token endpoint")
+	router.GET("/oauth2/jwks", h.jwks).Doc("OAuth2 JSON Web Key Set")
+	router.GET("/oauth2/userinfo", h.userInfo).Doc("OpenID Connect userinfo")
 	router.POST("/oauth2/introspect", h.introspect).Doc("OAuth2 token introspection")
 	router.POST("/oauth2/revoke", h.revoke).Doc("OAuth2 token revocation")
 }
@@ -205,7 +207,39 @@ func (h *Handlers) token(ctx *web.Context) error {
 	if pair.RefreshToken != "" {
 		response["refresh_token"] = pair.RefreshToken
 	}
+	if pair.IDToken != "" {
+		response["id_token"] = pair.IDToken
+	}
 	ctx.Gin().JSON(http.StatusOK, response)
+	return nil
+}
+
+func (h *Handlers) jwks(ctx *web.Context) error {
+	document, err := h.Service.JWKS()
+	if err != nil {
+		return err
+	}
+	ctx.Gin().JSON(http.StatusOK, document)
+	return nil
+}
+
+func (h *Handlers) userInfo(ctx *web.Context) error {
+	token := bearerToken(ctx.Request())
+	principal, err := h.Service.Verify(ctx.Request().Context(), token)
+	if err != nil {
+		return err
+	}
+	subject := principal.Subject
+	if subject == "" {
+		subject = principal.Username
+	}
+	ctx.Gin().JSON(http.StatusOK, map[string]any{
+		"sub":                subject,
+		"preferred_username": principal.Username,
+		"email":              principal.Email,
+		"name":               principal.Name,
+		"tenant_id":          principal.TenantID,
+	})
 	return nil
 }
 

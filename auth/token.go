@@ -118,6 +118,7 @@ type TokenService struct {
 	clients   ClientStore
 	passwords PasswordHasher
 	store     TokenStore
+	oidc      *rsaSigner
 }
 
 // NewTokenService builds a token service. A nil clients store makes every
@@ -130,12 +131,21 @@ func NewTokenService(cfg Config, users UserStore, clients ClientStore, store Tok
 	if store == nil {
 		store = NewMemoryTokenStore()
 	}
+	var oidc *rsaSigner
+	if cfg.RSAKeyPEM != "" {
+		parsed, err := newRSASigner(cfg.RSAKeyPEM, cfg.KeyID)
+		if err != nil {
+			return nil, err
+		}
+		oidc = parsed
+	}
 	return &TokenService{
 		cfg:       cfg,
 		users:     users,
 		clients:   clients,
 		passwords: BcryptHasher{},
 		store:     store,
+		oidc:      oidc,
 	}, nil
 }
 
@@ -197,6 +207,8 @@ func (s *TokenService) Login(ctx context.Context, request LoginRequest) (*TokenP
 		TenantID: user.TenantID,
 		ClientID: clientID,
 		UserType: user.UserType,
+		Email:    user.Email,
+		Name:     user.Name,
 		Operator: user.Operator,
 		Scopes:   user.Scopes,
 		Roles:    user.Roles,
@@ -365,6 +377,8 @@ func (s *TokenService) accessToken(ctx context.Context, principal Principal) (st
 		ClientID: principal.ClientID,
 		TenantID: principal.TenantID,
 		UserType: principal.UserType,
+		Email:    principal.Email,
+		Name:     principal.Name,
 		Scopes:   principal.Scopes,
 		Roles:    principal.Roles,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -383,6 +397,8 @@ type jwtClaims struct {
 	ClientID string   `json:"client_id,omitempty"`
 	TenantID int64    `json:"tenant_id,omitempty"`
 	UserType string   `json:"user_type,omitempty"`
+	Email    string   `json:"email,omitempty"`
+	Name     string   `json:"name,omitempty"`
 	Scopes   []string `json:"scope,omitempty"`
 	Roles    []string `json:"roles,omitempty"`
 	jwt.RegisteredClaims
@@ -405,6 +421,8 @@ func (s *TokenService) verifyJWT(raw string) (Principal, error) {
 		ClientID: claims.ClientID,
 		TenantID: claims.TenantID,
 		UserType: claims.UserType,
+		Email:    claims.Email,
+		Name:     claims.Name,
 		Scopes:   claims.Scopes,
 		Roles:    claims.Roles,
 	}

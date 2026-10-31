@@ -19,7 +19,8 @@
 - [x] OAuth2 client: authorization code + PKCE
 - [x] OAuth2 authorization server: authorize + code + PKCE + consent + metadata
 - [x] Social login callbacks (/oauth2/login|callback/:provider)
-- [ ] OIDC id_token/JWKS, cookie sessions, MFA
+- [x] OIDC id_token/JWKS/userinfo (RS256)
+- [ ] Cookie sessions, MFA
 - [ ] `gai` and `gmcp` adapters
 - [ ] Low-code resources compiled to the LCDP IR
 - [x] CLI: `new`, `dev`, `version`

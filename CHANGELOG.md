@@ -24,4 +24,5 @@ All notable changes to this project will be documented in this file.
 - Auth: password login, JWT/opaque access tokens, opaque refresh rotation,
   bearer middleware, passport-compatible Login/refresh/logout, OAuth2
   token/introspection/revocation endpoints, an authorization-code + PKCE
-  server with consent/metadata, and a client with social callbacks.
+  server with consent/metadata, OIDC id_token/JWKS/userinfo, and a client with
+  social callbacks.

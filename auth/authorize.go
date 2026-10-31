@@ -49,6 +49,7 @@ type AuthorizationCode struct {
 	Scope               string
 	CodeChallenge       string
 	CodeChallengeMethod string
+	Nonce               string
 	Principal           Principal
 	ExpiresAt           time.Time
 }
@@ -172,6 +173,7 @@ func (h *Handlers) authorize(ctx *web.Context) error {
 		Scope:               request.Scope,
 		CodeChallenge:       request.CodeChallenge,
 		CodeChallengeMethod: request.CodeChallengeMethod,
+		Nonce:               request.Nonce,
 		Principal:           principal,
 		ExpiresAt:           time.Now().Add(codeTTL),
 	}); err != nil {
@@ -240,7 +242,18 @@ func (h *Handlers) exchangeCode(ctx *web.Context) (*TokenPair, error) {
 	}
 	principal := codeData.Principal
 	principal.Scopes = strings.Fields(codeData.Scope)
-	return h.Service.Issue(ctx.Request().Context(), principal)
+	pair, err := h.Service.Issue(ctx.Request().Context(), principal)
+	if err != nil {
+		return nil, err
+	}
+	if h.Service.HasOIDC() && hasScope(principal.Scopes, "openid") {
+		idToken, err := h.Service.SignIDToken(principal, codeData.ClientID, codeData.Nonce)
+		if err != nil {
+			return nil, err
+		}
+		pair.IDToken = idToken
+	}
+	return pair, nil
 }
 
 func parseAuthorizationRequest(request *http.Request) (AuthorizationRequest, error) {
@@ -269,6 +282,15 @@ func redirectAllowed(client *Client, redirect string) bool {
 	}
 	for _, candidate := range client.RedirectURIs {
 		if candidate == redirect {
+			return true
+		}
+	}
+	return false
+}
+
+func hasScope(scopes []string, want string) bool {
+	for _, scope := range scopes {
+		if scope == want {
 			return true
 		}
 	}
@@ -330,6 +352,14 @@ func (h *Handlers) metadata(ctx *web.Context) error {
 		"grant_types_supported":                 []string{"authorization_code", "refresh_token", "client_credentials", "password"},
 		"code_challenge_methods_supported":      []string{"S256"},
 		"token_endpoint_auth_methods_supported": []string{"client_secret_basic", "client_secret_post", "none"},
+		"userinfo_endpoint":                     base + "/oauth2/userinfo",
+		"scopes_supported":                      []string{"openid", "profile", "email", "read"},
+		"claims_supported":                      []string{"sub", "iss", "aud", "exp", "iat", "nonce", "preferred_username", "email", "name", "tenant_id"},
+	}
+	if h.Service.HasOIDC() {
+		document["jwks_uri"] = base + "/oauth2/jwks"
+		document["id_token_signing_alg_values_supported"] = []string{"RS256"}
+		document["subject_types_supported"] = []string{"public"}
 	}
 	ctx.Gin().JSON(http.StatusOK, document)
 	return nil
