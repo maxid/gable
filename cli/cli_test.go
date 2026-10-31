@@ -71,12 +71,12 @@ func TestRunNewRejectsNonEmptyDirectory(t *testing.T) {
 
 func TestWatched(t *testing.T) {
 	cases := map[string]bool{
-		"main.go":          true,
-		"gable.yaml":       true,
-		"config.json":      true,
-		".hidden.go":       false,
-		"backup.go~":       false,
-		"README.md":        false,
+		"main.go":     true,
+		"gable.yaml":  true,
+		"config.json": true,
+		".hidden.go":  false,
+		"backup.go~":  false,
+		"README.md":   false,
 	}
 	for path, want := range cases {
 		if got := watched(path); got != want {
