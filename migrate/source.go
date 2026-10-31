@@ -75,8 +75,8 @@ func LoadFS(fsys fs.FS) ([]Migration, error) {
 }
 
 // Checksum computes Flyway's checksum: CRC32 over each UTF-8 line without its
-// line ending. The result is cast to int32, exactly as Flyway stores it, so a
-// Java-managed row keeps the same checksum.
+// line ending. The result is cast to int32, exactly as Flyway stores it, so an
+// existing Flyway history row keeps the same checksum.
 func Checksum(data []byte) int32 {
 	h := crc32.NewIEEE()
 	reader := bufio.NewReader(bytes.NewReader(data))
