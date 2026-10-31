@@ -111,8 +111,16 @@ func TestEnvelopeAndRequestID(t *testing.T) {
 	}
 }
 
-func TestXDMPEnvelopeConfig(t *testing.T) {
-	server := newTestServer(WithEnvelope(XDMPEnvelopeConfig()))
+func TestNumericEnvelopeConfig(t *testing.T) {
+	server := newTestServer(WithEnvelope(EnvelopeConfig{
+		SuccessCode:      "2000000",
+		InvalidCode:      "4000000",
+		UnauthorizedCode: "4010000",
+		ForbiddenCode:    "4030000",
+		NotFoundCode:     "4040000",
+		ConflictCode:     "4090000",
+		InternalCode:     "5000000",
+	}))
 	ok := decodeEnvelope(t, perform(server, http.MethodGet, "/hello/x", nil, nil).Body.Bytes())
 	if ok.Code != "2000000" || !ok.Success {
 		t.Fatalf("success envelope = %+v", ok)

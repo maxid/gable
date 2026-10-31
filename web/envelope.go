@@ -40,19 +40,6 @@ func DefaultEnvelopeConfig() EnvelopeConfig {
 	}
 }
 
-// XDMPEnvelopeConfig matches the six-field envelope used by the XDMP platform.
-func XDMPEnvelopeConfig() EnvelopeConfig {
-	return EnvelopeConfig{
-		SuccessCode:      "2000000",
-		InvalidCode:      "4000000",
-		UnauthorizedCode: "4010000",
-		ForbiddenCode:    "4030000",
-		NotFoundCode:     "4040000",
-		ConflictCode:     "4090000",
-		InternalCode:     "5000000",
-	}
-}
-
 // MapCode translates a standard framework error code to the configured code.
 // Unknown codes pass through unchanged.
 func (c EnvelopeConfig) MapCode(code string) string {
