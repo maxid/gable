@@ -126,6 +126,13 @@ mismatched tenant fails closed. `repo.Unscoped()` is the explicit escape hatch.
 `db.AutoMigrate(model)` creates missing tables only. MySQL DSNs should set
 `parseTime=true` so `DATETIME`/`TIMESTAMP` columns scan into `time.Time`.
 
+## Examples
+
+- `examples/hello` — minimal HTTP app with OpenAPI and Swagger UI.
+- `examples/tenant` — SaaS mode: host login, principal tenant, impersonation.
+- `examples/pilot` — tenant-scoped task board: full CRUD, memory/ORM stores,
+  single/saas modes, OpenAPI; runnable without a database.
+
 ## Planned
 - `dsl`: runtime model/page resources with file or database storage.
 - `ai` / `mcp`: adapters over the `gai` and `gmcp` libraries.

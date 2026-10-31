@@ -9,6 +9,7 @@
 - [x] Tenant: single/saas modes, host login rules, fail-closed scope, impersonation
 - [x] ORM core: models, query builder, CRUD, tenant guard, gcosid keys, AutoMigrate (MySQL/PostgreSQL)
 - [ ] ORM: relations/Preload, soft delete/retain, ClickHouse/DM/TDengine dialects
+- [x] Pilot: tenant-scoped task board (single/saas, memory/ORM, OpenAPI)
 - [ ] DSL resources (file/database storage)
 - [ ] `gai` and `gmcp` adapters
 - [ ] Low-code resources compiled to the LCDP IR

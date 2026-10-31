@@ -13,3 +13,6 @@ All notable changes to this project will be documented in this file.
   request scope and operator impersonation.
 - ORM: sqlx-backed models and repositories, query builder, tenant guard,
   gcosid primary keys, AutoMigrate for MySQL/PostgreSQL.
+- Pilot example: tenant-scoped task board with memory/ORM stores, single/saas
+  modes, CRUD and OpenAPI.
+- Fix: pagination now inserts a space before `LIMIT` when an `ORDER BY` is present.

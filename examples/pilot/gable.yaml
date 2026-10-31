@@ -1,0 +1,26 @@
+app:
+  name: gable-pilot
+  env: development
+
+log:
+  dir: logs
+  level: info
+  format: text
+
+http:
+  addr: ":8082"
+
+db:
+  driver: mysql
+  dsn: ""
+  max_open: 20
+  max_idle: 5
+
+tenant:
+  mode: single
+  root_id: 1
+  root_code: management
+  base_domain: example.com
+  header: X-Tenant-Id
+  root_fallback: true
+  reject_unknown_host: true

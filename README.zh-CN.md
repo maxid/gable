@@ -114,6 +114,13 @@ users, err := repo.Query().Where(orm.Eq("name", "alice")).All(ctx)
 `db.AutoMigrate(model)` 只创建缺失表。MySQL DSN 需带 `parseTime=true`，否则 `DATETIME`/`TIMESTAMP`
 无法扫描进 `time.Time`。
 
+## 示例
+
+- `examples/hello`：最小 HTTP 应用，带 OpenAPI/Swagger。
+- `examples/tenant`：SaaS 模式，Host 登录、主体租户、代入。
+- `examples/pilot`：租户任务看板，完整 CRUD、内存/ORM 双存储、single/saas、OpenAPI，
+  无数据库也能跑。
+
 ## 规划中
 - `dsl`：模型/页面资源的运行时加载，文件或数据库存储。
 - `ai` / `mcp`：对 `gai` 与 `gmcp` 的适配。

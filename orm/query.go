@@ -182,11 +182,13 @@ func (q *Query[T]) All(ctx context.Context) ([]T, error) {
 		}
 		statement += " ORDER BY " + strings.Join(parts, ", ")
 	}
-	statement += dialect.Pagination(q.limit, q.offset)
+	if pagination := dialect.Pagination(q.limit, q.offset); pagination != "" {
+		statement += " " + pagination
+	}
 
 	rows, err := q.repo.db.QueryContext(ctx, statement, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("orm: query %s: %w", statement, err)
 	}
 	defer rows.Close()
 
