@@ -99,12 +99,15 @@ type User struct {
 
 // Client is an OAuth2 client.
 type Client struct {
-	ID       string
-	Secret   string
-	Name     string
-	Scopes   []string
-	TenantID int64
-	Disabled bool
+	ID           string
+	Secret       string
+	Name         string
+	Scopes       []string
+	RedirectURIs []string
+	GrantTypes   []string
+	Public       bool
+	TenantID     int64
+	Disabled     bool
 }
 
 // UserStore loads users by tenant and username.

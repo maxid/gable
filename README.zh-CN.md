@@ -20,7 +20,8 @@
 - **SQL 优先的轻 ORM**：`sqlx` + 小方言层、类型化 Repository、租户过滤、`gcosid` 发号，
   MySQL/PostgreSQL 的 `AutoMigrate`。
 - **认证与 OAuth2**：密码登录、JWT 或 opaque access token、可轮换的 opaque refresh、
-  bearer 中间件、passport 兼容响应、OAuth2 token/introspection 端点与社交登录 PKCE 客户端。
+  bearer 中间件、passport 兼容响应、OAuth2 授权服务器（code + PKCE、consent、metadata）、
+  token/introspection 端点与社交登录 PKCE 客户端。
 - **可校验的 DSL**：`gable/v1` 的 Model/Table/Form/Page、lint、DDL 与 `lcdp.ir/v1` 预览、
   幂等 `apply`、动态 `/dsl/data/<model>` CRUD 与 MCP 工具；AI 可以不碰 Go 代码就生成、检查、
   应用并驱动。
@@ -72,7 +73,7 @@ func main() {
 | `tenant` | single/saas 解析、上下文、登录 Host 规则、代入 |
 | `orm` | sqlx Repository、租户守卫、迁移、gcosid 主键 |
 | `dsl` | gable/v1 资源、lint、DDL、低码 IR、apply |
-| `auth` | 密码/JWT/opaque token、refresh 轮换、passport 端点 |
+| `auth` | 密码/JWT/opaque token、refresh 轮换、passport 端点、OAuth2 authorize/token |
 | `auth/oauthclient` | 社交登录的 authorization-code + PKCE 客户端 |
 
 ## 五行接入 HTTP
@@ -163,8 +164,12 @@ server.Use(handlers.Middleware()) // 之后的受保护路由
   （`accessToken`、`refreshToken`、`expiresIn`、`key`、`needChangePassword` 等）。
 - `AUTH_FORMAT=opaque`（或 `AccessOpaque`）签发平台格式
   `client:username:userType:uuid`；默认 JWT。
-- `POST /oauth2/token` 支持 `password`、`refresh_token`、`client_credentials`；
+- `POST /oauth2/token` 支持 `authorization_code`、`password`、`refresh_token`、`client_credentials`；
   另有 `/oauth2/introspect` 与 `/oauth2/revoke`。
+- `GET/POST /oauth2/authorize` 实现 code + PKCE，带 `Authorizer` consent 回调与
+  redirect_uri 精确匹配；metadata 在 `/.well-known/oauth-authorization-server`。
+- `auth/oauthclient.Handlers` 提供 `/oauth2/login/:provider` 与
+  `/oauth2/callback/:provider`；应用把外部资料映射成本地 principal。
 - refresh 轮换；logout 删除会话标记与 refresh token。
 - `auth/oauthclient` 负责外部 provider 的 authorization-code + PKCE；应用把外部资料
   映射到本地用户后调用 `TokenService`。
@@ -181,8 +186,7 @@ server.Use(handlers.Middleware()) // 之后的受保护路由
 ## 规划中
 - DSL：数据库存储、diff/revision、Api/Mcp kind。
 - `ai` / `mcp`：对 `gai` 与 `gmcp` 的适配。
-- OAuth2 授权服务器（authorize + PKCE + consent + JWKS/OIDC 元数据）；
-  社交回调与会话在 `auth/oauthclient` 之上。
+- OIDC id_token/JWKS、cookie 会话、MFA；更多 provider preset。
 - `lowcode`：由应用托管 IR 与 vamis SDK。
 - ORM：关系/Preload、软删、ClickHouse/达梦/TDengine 方言。
 - `cli`：`gable gen`、`gable migrate`（在 `new`/`dev` 之外）。

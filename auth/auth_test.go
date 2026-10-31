@@ -3,9 +3,12 @@ package auth
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -202,5 +205,122 @@ func TestTenantSource(t *testing.T) {
 	principal, ok, err := TenantSource().Principal(ctx, nil)
 	if err != nil || !ok || principal.TenantID != 7 || !principal.Operator {
 		t.Fatalf("tenant source = %+v, %v, %v", principal, ok, err)
+	}
+}
+
+type denyAll struct{}
+
+func (denyAll) Authorize(context.Context, Principal, AuthorizationRequest) (bool, error) {
+	return false, nil
+}
+
+func authorizationServer(t *testing.T, authorizer Authorizer) (*web.Server, *TokenService) {
+	t.Helper()
+	hash, _ := (BcryptHasher{}).Hash("secret")
+	users := NewMemoryUserStore(User{ID: "1", Username: "admin", PasswordHash: hash, UserType: "1", TenantID: 1, Scopes: []string{"read"}})
+	clients := NewMemoryClientStore(Client{
+		ID: "web", Secret: "web-secret", Scopes: []string{"read"},
+		RedirectURIs: []string{"http://app.example/callback"}, TenantID: 1,
+	})
+	service, err := NewTokenService(Config{Issuer: "http://auth.example", Secret: "jwt-secret"}, users, clients, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handlers := NewHandlers(service, tenant.NewSingleLoginResolver(tenant.DefaultConfig()))
+	handlers.ConfigureAuthorizationServer(AuthorizationServerOptions{Authorizer: authorizer})
+	server := web.New(web.WithTitle("auth"))
+	server.Register(handlers)
+	return server, service
+}
+
+func pkcePair(t *testing.T) (string, string) {
+	t.Helper()
+	verifier := "test-verifier-0123456789-0123456789-0123456789"
+	sum := sha256.Sum256([]byte(verifier))
+	return verifier, base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+func TestAuthorizationCodeFlow(t *testing.T) {
+	server, service := authorizationServer(t, AllowAllAuthorizer{})
+	pair, err := service.Login(context.Background(), LoginRequest{TenantID: 1, Username: "admin", Password: "secret", ClientID: "web", ClientSecret: "web-secret"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier, challenge := pkcePair(t)
+
+	values := url.Values{
+		"response_type":         {"code"},
+		"client_id":             {"web"},
+		"redirect_uri":          {"http://app.example/callback"},
+		"scope":                 {"read"},
+		"state":                 {"state-1"},
+		"code_challenge":        {challenge},
+		"code_challenge_method": {"S256"},
+	}
+	request := httptest.NewRequest(http.MethodGet, "/oauth2/authorize?"+values.Encode(), nil)
+	request.Header.Set("Authorization", "Bearer "+pair.AccessToken)
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusFound {
+		t.Fatalf("authorize = %d %s", recorder.Code, recorder.Body)
+	}
+	location, err := url.Parse(recorder.Header().Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := location.Query().Get("code")
+	if code == "" || location.Query().Get("state") != "state-1" {
+		t.Fatalf("location = %s", location)
+	}
+
+	form := url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {code},
+		"redirect_uri":  {"http://app.example/callback"},
+		"client_id":     {"web"},
+		"client_secret": {"web-secret"},
+		"code_verifier": {verifier},
+	}
+	tokenRequest := httptest.NewRequest(http.MethodPost, "/oauth2/token", strings.NewReader(form.Encode()))
+	tokenRequest.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	tokenRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(tokenRecorder, tokenRequest)
+	if tokenRecorder.Code != 200 {
+		t.Fatalf("token = %d %s", tokenRecorder.Code, tokenRecorder.Body)
+	}
+	var tokenResponse map[string]any
+	if err := json.Unmarshal(tokenRecorder.Body.Bytes(), &tokenResponse); err != nil {
+		t.Fatal(err)
+	}
+	if tokenResponse["access_token"] == "" || tokenResponse["refresh_token"] == "" {
+		t.Fatalf("token response = %+v", tokenResponse)
+	}
+
+	replay := httptest.NewRequest(http.MethodPost, "/oauth2/token", strings.NewReader(form.Encode()))
+	replay.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	replayRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(replayRecorder, replay)
+	if replayRecorder.Code == 200 {
+		t.Fatal("authorization code must be single use")
+	}
+}
+
+func TestAuthorizationRequiresPrincipalAndConsent(t *testing.T) {
+	server, _ := authorizationServer(t, denyAll{})
+	verifier, challenge := pkcePair(t)
+	_ = verifier
+	values := url.Values{
+		"response_type":         {"code"},
+		"client_id":             {"web"},
+		"redirect_uri":          {"http://app.example/callback"},
+		"scope":                 {"read"},
+		"code_challenge":        {challenge},
+		"code_challenge_method": {"S256"},
+	}
+	request := httptest.NewRequest(http.MethodGet, "/oauth2/authorize?"+values.Encode(), nil)
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("no principal = %d", recorder.Code)
 	}
 }

@@ -142,6 +142,11 @@ func NewTokenService(cfg Config, users UserStore, clients ClientStore, store Tok
 // Config returns the normalized configuration.
 func (s *TokenService) Config() Config { return s.cfg }
 
+// Issue issues a token pair for an already authenticated principal.
+func (s *TokenService) Issue(ctx context.Context, principal Principal) (*TokenPair, error) {
+	return s.issue(ctx, principal, true)
+}
+
 // Login authenticates a username/password and issues tokens.
 func (s *TokenService) Login(ctx context.Context, request LoginRequest) (*TokenPair, error) {
 	if s.users == nil {

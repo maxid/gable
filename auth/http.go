@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/maxid/gable/tenant"
 	"github.com/maxid/gable/web"
@@ -23,6 +24,9 @@ type TokenVO struct {
 	VerifyToken          string `json:"verifyToken"`
 }
 
+// NewTokenVO maps a token pair to the frontend's camelCase shape.
+func NewTokenVO(pair *TokenPair) TokenVO { return tokenVO(pair) }
+
 func tokenVO(pair *TokenPair) TokenVO {
 	return TokenVO{
 		TokenType:    pair.TokenType,
@@ -35,13 +39,21 @@ func tokenVO(pair *TokenPair) TokenVO {
 
 // Handlers exposes login, token and introspection endpoints.
 type Handlers struct {
-	Service *TokenService
-	Tenants tenant.LoginResolver
+	Service    *TokenService
+	Tenants    tenant.LoginResolver
+	Codes      AuthorizationCodeStore
+	Authorizer Authorizer
+	LoginURL   func(returnTo string) string
+	CodeTTL    time.Duration
 }
 
 // NewHandlers returns handlers for a token service.
 func NewHandlers(service *TokenService, tenants tenant.LoginResolver) *Handlers {
-	return &Handlers{Service: service, Tenants: tenants}
+	return &Handlers{
+		Service: service,
+		Tenants: tenants,
+		Codes:   NewMemoryAuthorizationCodeStore(),
+	}
 }
 
 // Routes registers the passport and OAuth2 endpoints with the default prefix.
@@ -57,6 +69,10 @@ func (h *Handlers) Mount(router *web.Router, passportPrefix string) {
 	router.GET(passportPrefix+"/logout", h.logout).Doc("revoke the current token")
 	router.GET(passportPrefix+"/me", h.me).Doc("current principal")
 
+	router.GET("/oauth2/authorize", h.authorize).Doc("OAuth2 authorization endpoint")
+	router.POST("/oauth2/authorize", h.authorize).Doc("OAuth2 authorization endpoint")
+	router.GET("/.well-known/oauth-authorization-server", h.metadata).Doc("OAuth2 server metadata")
+	router.GET("/.well-known/openid-configuration", h.metadata).Doc("OpenID configuration")
 	router.POST("/oauth2/token", h.token).Doc("OAuth2 token endpoint")
 	router.POST("/oauth2/introspect", h.introspect).Doc("OAuth2 token introspection")
 	router.POST("/oauth2/revoke", h.revoke).Doc("OAuth2 token revocation")
@@ -165,6 +181,8 @@ func (h *Handlers) token(ctx *web.Context) error {
 		})
 	case "client_credentials":
 		pair, err = h.Service.ClientCredentials(ctx.Request().Context(), clientID, clientSecret)
+	case "authorization_code":
+		pair, err = h.exchangeCode(ctx)
 	case "refresh_token":
 		pair, err = h.Service.Refresh(ctx.Request().Context(), form.Get("refresh_token"))
 	default:

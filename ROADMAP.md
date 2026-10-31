@@ -17,7 +17,9 @@
 - [x] Auth core: password, JWT/opaque access, opaque refresh rotation, bearer middleware
 - [x] Passport-compatible Login/refresh/logout + OAuth2 token/introspection/revocation endpoints
 - [x] OAuth2 client: authorization code + PKCE
-- [ ] OAuth2 authorization server (authorize/PKCE/consent/JWKS/OIDC metadata)
+- [x] OAuth2 authorization server: authorize + code + PKCE + consent + metadata
+- [x] Social login callbacks (/oauth2/login|callback/:provider)
+- [ ] OIDC id_token/JWKS, cookie sessions, MFA
 - [ ] `gai` and `gmcp` adapters
 - [ ] Low-code resources compiled to the LCDP IR
 - [x] CLI: `new`, `dev`, `version`

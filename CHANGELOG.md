@@ -23,5 +23,5 @@ All notable changes to this project will be documented in this file.
   (`gable dsl mcp`).
 - Auth: password login, JWT/opaque access tokens, opaque refresh rotation,
   bearer middleware, passport-compatible Login/refresh/logout, OAuth2
-  token/introspection/revocation endpoints and an authorization-code + PKCE
-  client for social providers.
+  token/introspection/revocation endpoints, an authorization-code + PKCE
+  server with consent/metadata, and a client with social callbacks.

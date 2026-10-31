@@ -30,8 +30,9 @@ error codes. It composes the g\* library family instead of hiding it.
   PostgreSQL.
 - **Authentication and OAuth2.** Password login, JWT or opaque access tokens,
   rotating opaque refresh tokens, bearer middleware, passport-compatible
-  responses, OAuth2 token/introspection endpoints and a PKCE client for social
-  login.
+  responses, an OAuth2 authorization server (code + PKCE, consent callback,
+  metadata), token/introspection endpoints and a PKCE client with social
+  callbacks.
 - **A validated DSL for low-code resources.** `gable/v1` Model/Table/Form/Page
   resources, lint, DDL and `lcdp.ir/v1` previews, an idempotent `apply`, a
   dynamic `/dsl/data/<model>` CRUD API and MCP tools. This is the contract an
@@ -84,7 +85,7 @@ func main() {
 | `tenant` | single/saas resolution, context, host login rules, impersonation |
 | `orm` | sqlx-backed repositories, tenant guard, migrations, gcosid keys |
 | `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply |
-| `auth` | password/JWT/opaque tokens, refresh rotation, passport endpoints |
+| `auth` | password/JWT/opaque tokens, refresh rotation, passport endpoints, OAuth2 authorize/token |
 | `auth/oauthclient` | authorization-code + PKCE client for social providers |
 
 ## HTTP in five lines
@@ -180,8 +181,15 @@ server.Use(handlers.Middleware()) // protected routes registered after this
   (`accessToken`, `refreshToken`, `expiresIn`, `key`, `needChangePassword`, …).
 - `AUTH_FORMAT=opaque` (or `AccessOpaque`) issues the platform's
   `client:username:userType:uuid` access token; `JWT` is the default.
-- `POST /oauth2/token` supports `password`, `refresh_token` and
-  `client_credentials`; `/oauth2/introspect` and `/oauth2/revoke` are included.
+- `POST /oauth2/token` supports `authorization_code`, `password`,
+  `refresh_token` and `client_credentials`; `/oauth2/introspect` and
+  `/oauth2/revoke` are included.
+- `GET/POST /oauth2/authorize` implements code + PKCE with a `Consent`
+  (`Authorizer`) callback and exact redirect-uri matching; metadata is served at
+  `/.well-known/oauth-authorization-server`.
+- `auth/oauthclient.Handlers` adds `/oauth2/login/:provider` and
+  `/oauth2/callback/:provider`; the app maps the external profile to a local
+  principal.
 - Refresh tokens rotate; logout removes the session marker and refresh token.
 - `auth/oauthclient` handles authorization-code + PKCE for external providers;
   the application maps the external profile to a local user and calls
@@ -200,8 +208,7 @@ server.Use(handlers.Middleware()) // protected routes registered after this
 ## Planned
 - DSL: database store, diff/revision, Api/Mcp kinds.
 - `ai` / `mcp`: adapters over the `gai` and `gmcp` libraries.
-- OAuth2 authorization server (authorize + PKCE + consent + JWKS/OIDC metadata);
-  social callbacks and sessions on top of `auth/oauthclient`.
+- OIDC id_token/JWKS, cookie sessions, MFA; more provider presets.
 - `lowcode`: serve the IR and the vamis SDK from an app.
 - ORM: relations/preload, soft delete, ClickHouse/DM/TDengine dialects.
 - `cli`: `gable gen`, `gable migrate` (in addition to `new`/`dev`).
