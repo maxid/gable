@@ -111,7 +111,8 @@ users, err := repo.Query().Where(orm.Eq("name", "alice")).All(ctx)
 ```
 
 租户谓词来自 `tenant.FromContext`；缺失或不匹配 fail-closed。`repo.Unscoped()` 是显式逃生口；
-`db.AutoMigrate(model)` 只创建缺失表。
+`db.AutoMigrate(model)` 只创建缺失表。MySQL DSN 需带 `parseTime=true`，否则 `DATETIME`/`TIMESTAMP`
+无法扫描进 `time.Time`。
 
 ## 规划中
 - `dsl`：模型/页面资源的运行时加载，文件或数据库存储。

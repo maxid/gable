@@ -123,7 +123,8 @@ users, err := repo.Query().Where(orm.Eq("name", "alice")).All(ctx)
 
 The tenant predicate is injected from `tenant.FromContext`; a missing or
 mismatched tenant fails closed. `repo.Unscoped()` is the explicit escape hatch.
-`db.AutoMigrate(model)` creates missing tables only.
+`db.AutoMigrate(model)` creates missing tables only. MySQL DSNs should set
+`parseTime=true` so `DATETIME`/`TIMESTAMP` columns scan into `time.Time`.
 
 ## Planned
 - `dsl`: runtime model/page resources with file or database storage.
