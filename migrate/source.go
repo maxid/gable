@@ -3,7 +3,6 @@ package migrate
 import (
 	"bufio"
 	"bytes"
-	"crypto/sha256"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -101,11 +100,4 @@ func Checksum(data []byte) int32 {
 		}
 	}
 	return int32(h.Sum32())
-}
-
-// SHA256 is kept for callers that want a content fingerprint independent of
-// Flyway's CRC32. The history table stores Checksum, not this value.
-func SHA256(data []byte) string {
-	sum := sha256.Sum256(data)
-	return fmt.Sprintf("%x", sum[:])
 }
