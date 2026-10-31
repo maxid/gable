@@ -4,6 +4,7 @@ package log
 import (
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strings"
 
 	"github.com/maxid/glogs"
@@ -16,6 +17,10 @@ func New(cfg config.Log, appName string) (*glogs.Logger, error) {
 	gl := glogs.DefaultConfig(appName)
 	if cfg.Dir != "" {
 		gl.Dir = cfg.Dir
+	}
+	for name, channel := range gl.Channels {
+		channel.Path = filepath.Join(gl.Dir, appName, "common", string(name), string(name)+".log")
+		gl.Channels[name] = channel
 	}
 
 	switch strings.ToLower(cfg.Level) {
