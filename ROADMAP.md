@@ -22,6 +22,7 @@
 - [x] Social login callbacks (/oauth2/login|callback/:provider)
 - [x] OIDC id_token/JWKS/userinfo (RS256)
 - [ ] Cookie sessions, MFA
+- [x] `rpc`: local + HTTP/JSON bindings with a resolver port (Nacos adapter lives with the deployment)
 - [ ] `gai` and `gmcp` adapters
 - [ ] Low-code resources compiled to the LCDP IR
 - [x] CLI: `new`, `dev`, `version`

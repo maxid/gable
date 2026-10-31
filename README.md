@@ -87,6 +87,7 @@ func main() {
 | `web` | Gin-backed MVC, envelope, binding/validation, OpenAPI + Swagger UI |
 | `tenant` | single/saas resolution, context, host login rules, impersonation |
 | `orm` | sqlx-backed repositories, tenant guard, migrations, gcosid keys |
+| `rpc` | typed Client with local and HTTP/JSON bindings, shared-key auth, pluggable resolver |
 | `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply |
 | `auth` | password/JWT/opaque tokens, refresh rotation, passport endpoints, OAuth2 authorize/token |
 | `cache` | gcache constructor that inherits the application namespace |
