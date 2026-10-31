@@ -28,6 +28,9 @@ error codes. It composes the g\* library family instead of hiding it.
 - **A SQL-first ORM.** `sqlx` + a small dialect layer, typed repositories,
   tenant-scoped queries, `gcosid` keys and `AutoMigrate` for MySQL and
   PostgreSQL.
+- **One namespace, derived everywhere.** `gns` turns a root name into cache
+  prefixes, Flyway history tables, CosID segments, Kafka topic/group names and
+  cluster channels; each subsystem can override it.
 - **Authentication and OAuth2.** Password login, JWT or opaque access tokens,
   rotating opaque refresh tokens, bearer middleware, passport-compatible
   responses, an OAuth2 authorization server (code + PKCE, consent callback,
@@ -86,6 +89,7 @@ func main() {
 | `orm` | sqlx-backed repositories, tenant guard, migrations, gcosid keys |
 | `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply |
 | `auth` | password/JWT/opaque tokens, refresh rotation, passport endpoints, OAuth2 authorize/token |
+| `cache` | gcache constructor that inherits the application namespace |
 | `auth/oauthclient` | authorization-code + PKCE client for social providers |
 
 ## HTTP in five lines
@@ -167,6 +171,32 @@ gable dsl mcp --dir resources
 The data API accepts vamis CRUD parameters (`page`, `perPage`, `orderBy`,
 `orderDir`) and enforces the Model's tenant guard. The database store,
 diff/revision and the Api/Mcp kinds are the next slice.
+
+## Namespaces
+
+```yaml
+namespace:
+  root: app
+  cache: app          # inherited when omitted
+  flyway: app
+  cosid: none         # keep existing segment names
+  cluster: app
+  timeSeries: app
+```
+
+`app.Namespace()` returns the derived `gns.Set`:
+
+```go
+ns := app.Namespace()
+ns.CacheName()                 // gcache namespace
+ns.FlywayTable("schema_migrations") // app_schema_migrations
+ns.Segment("sys_dict")         // app.sys_dict (or sys_dict with cosid: none)
+ns.Topic("iothub_raw")         // app.iothub_raw
+```
+
+`gable/cache.New` passes `CacheName` to gcache; auth token-store keys use the
+same namespace; `gcache`/`gbus` use `gns` internally. Flyway, CosID and cluster
+consumers receive the derived values.
 
 ## Authentication
 

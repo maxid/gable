@@ -43,6 +43,7 @@ func main() {
 		Issuer:       "auth-example",
 		Secret:       secret,
 		AccessFormat: format,
+		Namespace:    cfg.Namespace.Root,
 	}, users, clients, auth.NewMemoryTokenStore())
 	if err != nil {
 		log.Fatal(err)

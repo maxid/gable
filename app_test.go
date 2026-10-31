@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/maxid/gns"
+
 	"github.com/maxid/gable/config"
 )
 
@@ -126,6 +128,24 @@ func TestAppRejectsDuplicateModuleAndDoubleStart(t *testing.T) {
 		t.Fatal("expected already started error")
 	}
 	_ = app.Stop(context.Background())
+}
+
+func TestAppNamespace(t *testing.T) {
+	var events []string
+	app := testApp(t)
+	if err := app.Register(&testModule{id: "a", events: &events}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer app.Stop(context.Background())
+	if app.Namespace().Root != "gable" || app.Namespace().Cache != "gable" {
+		t.Fatalf("namespace = %+v", app.Namespace())
+	}
+	if _, ok := Resolve[gns.Set](app.Container(), "gable.namespace"); !ok {
+		t.Fatal("namespace not in container")
+	}
 }
 
 func TestContainerResolveRejectsWrongType(t *testing.T) {

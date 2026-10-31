@@ -83,6 +83,26 @@ func TestTenantYAMLKeepsDefaults(t *testing.T) {
 	}
 }
 
+func TestNamespaceDefaultsAndOverrides(t *testing.T) {
+	cfg, err := LoadBytes([]byte("app:\n  name: demo\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Namespace.Root != "gable" || cfg.Namespace.Cache != "gable" {
+		t.Fatalf("namespace = %+v", cfg.Namespace)
+	}
+
+	t.Setenv("GABLE_NAMESPACE", "app")
+	t.Setenv("GABLE_NAMESPACE_CACHE", "app_cache")
+	cfg, err = LoadBytes([]byte("app:\n  name: demo\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Namespace.Root != "app" || cfg.Namespace.Cache != "app_cache" || cfg.Namespace.Flyway != "app" {
+		t.Fatalf("namespace = %+v", cfg.Namespace)
+	}
+}
+
 func TestValidateRejectsBadValues(t *testing.T) {
 	cases := []string{
 		"app:\n  name: ''\n",

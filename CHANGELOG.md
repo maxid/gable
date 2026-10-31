@@ -21,6 +21,8 @@ All notable changes to this project will be documented in this file.
 - DSL runtime: dynamic `/dsl/data/<model>` CRUD with tenant guard, vamis
   pagination aliases and `gable dsl serve`; MCP tools over stdio
   (`gable dsl mcp`).
+- Namespace: `gns` config on `Config`/`App`, cache constructor, auth token-store keys;
+  gcache and gbus now compose names through `gns`.
 - Auth: password login, JWT/opaque access tokens, opaque refresh rotation,
   bearer middleware, passport-compatible Login/refresh/logout, OAuth2
   token/introspection/revocation endpoints, an authorization-code + PKCE

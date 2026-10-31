@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/maxid/glogs"
+	"github.com/maxid/gns"
 
 	"github.com/maxid/gable/config"
 	gablelog "github.com/maxid/gable/log"
@@ -23,7 +24,8 @@ type Option func(*App)
 type App struct {
 	mu sync.Mutex
 
-	cfg *config.Config
+	cfg       *config.Config
+	namespace gns.Set
 
 	container *Container
 	logger    *glogs.Logger
@@ -82,6 +84,9 @@ func (a *App) Register(module Module) error {
 	return nil
 }
 
+// Namespace returns the derived namespace set. It is populated by Start.
+func (a *App) Namespace() gns.Set { return a.namespace }
+
 // Container returns the application container.
 func (a *App) Container() *Container { return a.container }
 
@@ -110,6 +115,11 @@ func (a *App) Start(ctx context.Context) error {
 	if err := a.cfg.Validate(); err != nil {
 		return err
 	}
+	ns, err := gns.New(a.cfg.Namespace)
+	if err != nil {
+		return err
+	}
+	a.namespace = ns
 	if a.logger == nil {
 		logger, err := gablelog.New(a.cfg.Log, a.cfg.App.Name)
 		if err != nil {
@@ -124,6 +134,7 @@ func (a *App) Start(ctx context.Context) error {
 	a.container.Set("gable.app", a)
 	a.container.Set("gable.config", a.cfg)
 	a.container.Set("gable.logger", a.logger)
+	a.container.Set("gable.namespace", a.namespace)
 
 	ordered, err := orderModules(a.modules)
 	if err != nil {

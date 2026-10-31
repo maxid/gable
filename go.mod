@@ -11,9 +11,11 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/jmoiron/sqlx v1.4.0
+	github.com/maxid/gcache v0.0.0-20261031170109-0c7115da3d10
 	github.com/maxid/gcosid v0.0.0-20261031112445-cbc7c57c79f7
 	github.com/maxid/glogs v0.0.0-20261029144859-382e4fa15661
 	github.com/maxid/gmcp v0.0.0-20261031135746-ee92dfdfe8c1
+	github.com/maxid/gns v0.0.0-20261031165430-2a21baf0a62f
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.57.0
 	golang.org/x/oauth2 v0.37.0

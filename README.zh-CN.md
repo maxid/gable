@@ -19,6 +19,8 @@
   可选运营方代入；租户守卫 fail-closed。
 - **SQL 优先的轻 ORM**：`sqlx` + 小方言层、类型化 Repository、租户过滤、`gcosid` 发号，
   MySQL/PostgreSQL 的 `AutoMigrate`。
+- **一个 namespace，派生到所有子系统**：`gns` 把根名称派生成缓存前缀、Flyway 历史表、
+  CosID 段、Kafka topic/group 与集群 channel；每个子系统可单独覆盖。
 - **认证与 OAuth2**：密码登录、JWT 或 opaque access token、可轮换的 opaque refresh、
   bearer 中间件、passport 兼容响应、OAuth2 授权服务器（code + PKCE、consent、metadata）、
   OIDC id_token/JWKS/userinfo、token/introspection 端点与社交登录 PKCE 客户端。
@@ -74,6 +76,7 @@ func main() {
 | `orm` | sqlx Repository、租户守卫、迁移、gcosid 主键 |
 | `dsl` | gable/v1 资源、lint、DDL、低码 IR、apply |
 | `auth` | 密码/JWT/opaque token、refresh 轮换、passport 端点、OAuth2 authorize/token |
+| `cache` | 继承应用 namespace 的 gcache 构造器 |
 | `auth/oauthclient` | 社交登录的 authorization-code + PKCE 客户端 |
 
 ## 五行接入 HTTP
@@ -150,6 +153,31 @@ gable dsl mcp --dir resources
 
 数据 API 兼容 vamis CRUD 的 `page/perPage/orderBy/orderDir` 参数，并执行 Model 的租户守卫。
 数据库存储、diff/revision 与 Api/Mcp kind 是下一刀。
+
+## 命名空间
+
+```yaml
+namespace:
+  root: app
+  cache: app          # 省略时继承 root
+  flyway: app
+  cosid: none         # 保留既有段名
+  cluster: app
+  timeSeries: app
+```
+
+`app.Namespace()` 返回派生的 `gns.Set`：
+
+```go
+ns := app.Namespace()
+ns.CacheName()                 // gcache namespace
+ns.FlywayTable("schema_migrations") // app_schema_migrations
+ns.Segment("sys_dict")         // app.sys_dict（cosid: none 时仍是 sys_dict）
+ns.Topic("iothub_raw")         // app.iothub_raw
+```
+
+`gable/cache.New` 把 `CacheName` 传给 gcache；auth 的 token store key 使用同一 namespace；
+`gcache`/`gbus` 内部使用 `gns`。Flyway、CosID 与 cluster 消费方直接使用派生值。
 
 ## 认证
 

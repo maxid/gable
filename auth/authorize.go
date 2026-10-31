@@ -167,7 +167,7 @@ func (h *Handlers) authorize(ctx *web.Context) error {
 	if codeTTL <= 0 {
 		codeTTL = 5 * time.Minute
 	}
-	if err := h.Codes.Put(ctx.Request().Context(), hashToken(code), AuthorizationCode{
+	if err := h.Codes.Put(ctx.Request().Context(), h.Service.tokenKey(code), AuthorizationCode{
 		ClientID:            client.ID,
 		RedirectURI:         request.RedirectURI,
 		Scope:               request.Scope,
@@ -212,7 +212,7 @@ func (h *Handlers) exchangeCode(ctx *web.Context) (*TokenPair, error) {
 		return nil, ErrInvalidGrant
 	}
 	clientID, clientSecret := clientCredentials(ctx.Request(), form)
-	codeData, ok, err := h.Codes.Take(ctx.Request().Context(), hashToken(code))
+	codeData, ok, err := h.Codes.Take(ctx.Request().Context(), h.Service.tokenKey(code))
 	if err != nil {
 		return nil, err
 	}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/maxid/gns"
 )
 
 // TokenStore persists opaque access tokens and refresh tokens. Implementations
@@ -253,7 +254,7 @@ func (s *TokenService) Refresh(ctx context.Context, refreshToken string) (*Token
 	if token == "" {
 		return nil, ErrInvalidGrant
 	}
-	key := hashToken(token)
+	key := s.tokenKey(token)
 	principal, _, ok, err := s.store.GetRefresh(ctx, key)
 	if err != nil {
 		return nil, err
@@ -273,7 +274,7 @@ func (s *TokenService) Verify(ctx context.Context, accessToken string) (Principa
 	}
 	switch s.cfg.AccessFormat {
 	case AccessOpaque:
-		principal, expiresAt, ok, err := s.store.GetAccess(ctx, hashToken(token))
+		principal, expiresAt, ok, err := s.store.GetAccess(ctx, s.tokenKey(token))
 		if err != nil {
 			return Principal{}, err
 		}
@@ -309,7 +310,7 @@ func (s *TokenService) Introspect(ctx context.Context, token string) (Introspect
 // the refresh token. JWT access tokens stay valid until they expire; their
 // session marker is removed so refresh cannot continue.
 func (s *TokenService) Revoke(ctx context.Context, token string) error {
-	key := hashToken(strings.TrimSpace(token))
+	key := s.tokenKey(strings.TrimSpace(token))
 	if principal, _, ok, _ := s.store.GetAccess(ctx, key); ok && principal.Session != "" {
 		return s.store.DeleteSession(ctx, principal.Session)
 	}
@@ -336,7 +337,7 @@ func (s *TokenService) issue(ctx context.Context, principal Principal, withRefre
 
 	// Store a marker even for JWT so logout can revoke the refresh token.
 	if s.cfg.AccessFormat == AccessJWT {
-		_ = s.store.PutAccess(ctx, hashToken(access), principal, principal.ExpiresAt)
+		_ = s.store.PutAccess(ctx, s.tokenKey(access), principal, principal.ExpiresAt)
 	}
 	pair := &TokenPair{
 		AccessToken: access,
@@ -347,7 +348,7 @@ func (s *TokenService) issue(ctx context.Context, principal Principal, withRefre
 	}
 	if withRefresh {
 		refresh := randomToken()
-		if err := s.store.PutRefresh(ctx, hashToken(refresh), principal, now.Add(s.cfg.RefreshTTL)); err != nil {
+		if err := s.store.PutRefresh(ctx, s.tokenKey(refresh), principal, now.Add(s.cfg.RefreshTTL)); err != nil {
 			return nil, err
 		}
 		pair.RefreshToken = refresh
@@ -366,7 +367,7 @@ func (s *TokenService) accessToken(ctx context.Context, principal Principal) (st
 			userType = "0"
 		}
 		token := fmt.Sprintf(s.cfg.OpaqueFormat, clientID, principal.Username, userType, randomUUID())
-		if err := s.store.PutAccess(ctx, hashToken(token), principal, principal.ExpiresAt); err != nil {
+		if err := s.store.PutAccess(ctx, s.tokenKey(token), principal, principal.ExpiresAt); err != nil {
 			return "", err
 		}
 		return token, nil
@@ -440,6 +441,10 @@ func (s *TokenService) verifyJWT(raw string) (Principal, error) {
 
 func secretEqual(want, got string) bool {
 	return subtle.ConstantTimeCompare([]byte(want), []byte(got)) == 1
+}
+
+func (s *TokenService) tokenKey(token string) string {
+	return hashToken(gns.Join(":", s.cfg.Namespace, token))
 }
 
 func hashToken(token string) string {

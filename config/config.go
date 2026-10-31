@@ -10,6 +10,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/maxid/gns"
+
 	"github.com/maxid/gable/tenant"
 )
 
@@ -46,11 +48,12 @@ func (d Duration) Std() time.Duration { return time.Duration(d) }
 
 // Config is the application configuration.
 type Config struct {
-	App    App           `yaml:"app"`
-	Log    Log           `yaml:"log"`
-	HTTP   HTTP          `yaml:"http"`
-	DB     DB            `yaml:"db"`
-	Tenant tenant.Config `yaml:"tenant"`
+	App       App           `yaml:"app"`
+	Log       Log           `yaml:"log"`
+	HTTP      HTTP          `yaml:"http"`
+	DB        DB            `yaml:"db"`
+	Tenant    tenant.Config `yaml:"tenant"`
+	Namespace gns.Config    `yaml:"namespace"`
 }
 
 // App identifies the application.
@@ -91,8 +94,9 @@ func Default() *Config {
 			ReadTimeout:  Duration(10 * time.Second),
 			WriteTimeout: Duration(10 * time.Second),
 		},
-		DB:     DB{MaxOpen: 20, MaxIdle: 5},
-		Tenant: tenant.DefaultConfig(),
+		DB:        DB{MaxOpen: 20, MaxIdle: 5},
+		Tenant:    tenant.DefaultConfig(),
+		Namespace: gns.DefaultConfig("gable"),
 	}
 }
 
@@ -114,6 +118,7 @@ func LoadBytes(data []byte) (*Config, error) {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 	applyEnv(cfg)
+	cfg.Namespace = cfg.Namespace.Normalize()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -144,6 +149,9 @@ func (c *Config) Validate() error {
 	if err := c.Tenant.Validate(); err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
+	if err := c.Namespace.Validate(); err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
 	return nil
 }
 
@@ -162,6 +170,12 @@ func applyEnv(c *Config) {
 	setString(&c.Tenant.RootCode, "GABLE_TENANT_ROOT_CODE")
 	setString(&c.Tenant.BaseDomain, "GABLE_TENANT_BASE_DOMAIN")
 	setString(&c.Tenant.Header, "GABLE_TENANT_HEADER")
+	setString(&c.Namespace.Root, "GABLE_NAMESPACE")
+	setString(&c.Namespace.Cache, "GABLE_NAMESPACE_CACHE")
+	setString(&c.Namespace.Flyway, "GABLE_NAMESPACE_FLYWAY")
+	setString(&c.Namespace.CosID, "GABLE_NAMESPACE_COSID")
+	setString(&c.Namespace.Cluster, "GABLE_NAMESPACE_CLUSTER")
+	setString(&c.Namespace.TimeSeries, "GABLE_NAMESPACE_TIMESERIES")
 	if raw, ok := os.LookupEnv("GABLE_TENANT_ROOT_ID"); ok {
 		if id, err := strconv.ParseInt(raw, 10, 64); err == nil && id > 0 {
 			c.Tenant.RootID = id

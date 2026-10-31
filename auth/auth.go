@@ -34,6 +34,7 @@ type Config struct {
 	RSAKeyPEM    string        `yaml:"rsaKeyPEM"`
 	KeyID        string        `yaml:"keyID"`
 	IDTokenTTL   time.Duration `yaml:"idTokenTTL"`
+	Namespace    string        `yaml:"namespace"`
 }
 
 // DefaultConfig returns development defaults.
@@ -66,6 +67,9 @@ func (c Config) Normalize() Config {
 	}
 	if c.KeyID == "" {
 		c.KeyID = "default"
+	}
+	if strings.TrimSpace(c.Namespace) == "" {
+		c.Namespace = "gable"
 	}
 	if c.OpaqueFormat == "" {
 		c.OpaqueFormat = "%s:%s:%s:%s"
