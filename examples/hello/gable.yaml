@@ -1,0 +1,11 @@
+app:
+  name: hello
+  env: development
+
+log:
+  dir: logs
+  level: info
+  format: text
+
+http:
+  addr: ":8080"
