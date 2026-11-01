@@ -171,6 +171,43 @@ func isDSLDocument(data []byte) bool {
 	}
 }
 
+// resource is one loaded resource, with the identity it is stored under.
+type resource struct {
+	Kind Kind
+	Name string
+	Doc  any
+}
+
+// resources lists every loaded resource in a stable order: models, tables, forms, pages,
+// each sorted by name. Both stores iterate through it, so a file apply and a database
+// save see the same sequence.
+func (s *Set) resources() []resource {
+	out := make([]resource, 0, len(s.Models)+len(s.Tables)+len(s.Forms)+len(s.Pages))
+	for _, name := range sortedKeys(s.Models) {
+		out = append(out, resource{Kind: KindModel, Name: name, Doc: s.Models[name]})
+	}
+	for _, name := range sortedKeys(s.Tables) {
+		out = append(out, resource{Kind: KindTable, Name: name, Doc: s.Tables[name]})
+	}
+	for _, name := range sortedKeys(s.Forms) {
+		out = append(out, resource{Kind: KindForm, Name: name, Doc: s.Forms[name]})
+	}
+	for _, name := range sortedKeys(s.Pages) {
+		out = append(out, resource{Kind: KindPage, Name: name, Doc: s.Pages[name]})
+	}
+	return out
+}
+
+// resourceKey names a resource in issues, logs and CLI output.
+func resourceKey(kind Kind, name string) string { return string(kind) + "/" + name }
+
+// marshalResource renders the normalized document of one resource.
+//
+// Every store writes this exact form: the file store compares it against the file on
+// disk, the database store against the stored column, so "unchanged" means the same
+// thing in both.
+func marshalResource(doc any) ([]byte, error) { return yaml.Marshal(doc) }
+
 // Resource returns one resource by kind and name.
 func (s *Set) Resource(kind Kind, name string) (any, bool) {
 	switch kind {
@@ -198,40 +235,8 @@ func (s *Set) ApplyDir(out string) ([]string, error) {
 		return nil, err
 	}
 	var written []string
-
-	models := sortedKeys(s.Models)
-	for _, name := range models {
-		path, changed, err := writeYAML(out, string(KindModel)+"-"+name+".yaml", s.Models[name])
-		if err != nil {
-			return written, err
-		}
-		if changed {
-			written = append(written, path)
-		}
-	}
-	tables := sortedKeys(s.Tables)
-	for _, name := range tables {
-		path, changed, err := writeYAML(out, string(KindTable)+"-"+name+".yaml", s.Tables[name])
-		if err != nil {
-			return written, err
-		}
-		if changed {
-			written = append(written, path)
-		}
-	}
-	forms := sortedKeys(s.Forms)
-	for _, name := range forms {
-		path, changed, err := writeYAML(out, string(KindForm)+"-"+name+".yaml", s.Forms[name])
-		if err != nil {
-			return written, err
-		}
-		if changed {
-			written = append(written, path)
-		}
-	}
-	pages := sortedKeys(s.Pages)
-	for _, name := range pages {
-		path, changed, err := writeYAML(out, string(KindPage)+"-"+name+".yaml", s.Pages[name])
+	for _, item := range s.resources() {
+		path, changed, err := writeYAML(out, string(item.Kind)+"-"+item.Name+".yaml", item.Doc)
 		if err != nil {
 			return written, err
 		}
@@ -243,7 +248,7 @@ func (s *Set) ApplyDir(out string) ([]string, error) {
 }
 
 func writeYAML(dir, file string, value any) (string, bool, error) {
-	raw, err := yaml.Marshal(value)
+	raw, err := marshalResource(value)
 	if err != nil {
 		return "", false, err
 	}
