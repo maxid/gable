@@ -76,6 +76,27 @@ func main() {
 }
 ```
 
+## Conversations with tools
+
+```go
+service, err := ai.New(ai.Config{
+    Provider: "openai", BaseURL: "https://api.deepseek.com/v1",
+    APIKey: key, Model: "deepseek-chat",
+    SystemPrompt: "be terse",
+}, ai.WithTools(ai.Tool{
+    Name: "order_status", Schema: schema,
+    Handler: func(ctx context.Context, args json.RawMessage) (any, error) { /* ... */ },
+}))
+
+result, err := service.Ask(ctx, sessionID, "where is order 42?")
+// result.Text, result.ToolsUsed, result.Iterations
+```
+
+The loop runs the tools the model asks for and feeds the results back. Two bounds are
+not configurable into "off": `MaxIterations` (a confused model must not become an
+infinite bill) and `MaxHistory` (history is trimmed at a user turn, so a tool call is
+never separated from its result).
+
 ## Schema from DSL
 
 ```bash
@@ -100,6 +121,7 @@ tables — altering one is a data-loss decision that belongs to explicit migrati
 | `orm` | sqlx-backed repositories, tenant guard, migrations, gcosid keys |
 | `rpc` | typed Client with local and HTTP/JSON bindings, shared-key auth, pluggable resolver; `rpc/nacos` resolves through the registry |
 | `mcp` | exposes operations as MCP tools over Streamable HTTP, with a shared-key transport check |
+| `ai` | tool-calling conversation loop over `gai`, with bounded rounds and bounded history |
 | `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply |
 | `auth` | password/JWT/opaque tokens, refresh rotation, passport endpoints, OAuth2 authorize/token |
 | `cache` | gcache constructor that inherits the application namespace |

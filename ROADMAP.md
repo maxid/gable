@@ -24,7 +24,7 @@
 - [ ] Cookie sessions, MFA
 - [x] `rpc`: local + HTTP/JSON bindings with a resolver port (Nacos adapter lives with the deployment)
 - [x] `mcp`: operations as MCP tools over HTTP (shared-key transport check)
-- [ ] `gai`: LLM provider wiring (adapter exists in `gai/openai`)
+- [x] `ai`: tool-calling conversation loop over `gai` (bounded rounds and history)
 - [ ] Low-code resources compiled to the LCDP IR
 - [x] CLI: `new`, `dev`, `version`
 - [x] CLI: `migrate` (DSL models → missing tables, `--dry-run` prints the DDL)
