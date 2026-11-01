@@ -27,5 +27,6 @@
 - [ ] `gai`: LLM provider wiring (adapter exists in `gai/openai`)
 - [ ] Low-code resources compiled to the LCDP IR
 - [x] CLI: `new`, `dev`, `version`
-- [ ] CLI: `gen`, `migrate` (the library exists; the command is not wired)
+- [x] CLI: `migrate` (DSL models → missing tables, `--dry-run` prints the DDL)
+- [ ] CLI: `gen` (what it generates is still undecided)
 - [ ] v1.0 API stabilization

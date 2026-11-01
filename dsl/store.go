@@ -55,6 +55,12 @@ func LoadDir(dir string) (*Set, Issues, error) {
 			issues = append(issues, Issue{Resource: path, Message: err.Error()})
 			return nil
 		}
+		// A project keeps its application config next to its DSL files, so "this file
+		// is not ours" must not be an error. Only a file that claims a gable envelope
+		// and gets it wrong is reported.
+		if !isDSLDocument(data) {
+			return nil
+		}
 		loaded, loadIssues := LoadBytes(path, data)
 		issues = append(issues, loadIssues...)
 		for key, doc := range loaded.Models {
@@ -140,6 +146,29 @@ func LoadBytes(name string, data []byte) (*Set, Issues) {
 		return set, Issues{{Resource: name, Message: fmt.Sprintf("unsupported kind %q", head.Kind)}}
 	}
 	return set, nil
+}
+
+// isDSLDocument reports whether the file declares a gable envelope. A wrong version
+// still counts as ours: that is a bug the author must see, not a file to skip.
+func isDSLDocument(data []byte) bool {
+	var head struct {
+		APIVersion string `yaml:"apiVersion"`
+		Kind       string `yaml:"kind"`
+	}
+	if err := yaml.Unmarshal(data, &head); err != nil {
+		return false
+	}
+	if strings.HasPrefix(strings.TrimSpace(head.APIVersion), "gable/") {
+		return true
+	}
+	// A file that names one of our kinds is ours even with the wrong apiVersion: the
+	// author meant a resource, and the error must say so.
+	switch Kind(strings.TrimSpace(head.Kind)) {
+	case KindModel, KindTable, KindForm, KindPage:
+		return true
+	default:
+		return false
+	}
 }
 
 // Resource returns one resource by kind and name.

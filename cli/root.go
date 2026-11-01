@@ -16,7 +16,7 @@ func NewRootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.AddCommand(newNewCommand(), newDevCommand(), newDSLCommand(), newVersionCommand())
+	root.AddCommand(newNewCommand(), newDevCommand(), newDSLCommand(), newMigrateCommand(), newVersionCommand())
 	return root
 }
 

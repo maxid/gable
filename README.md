@@ -76,6 +76,17 @@ func main() {
 }
 ```
 
+## Schema from DSL
+
+```bash
+gable migrate --config gable.yaml --dir ./dsl --dry-run   # print the DDL
+gable migrate --config gable.yaml --dir ./dsl             # create missing tables
+```
+
+`migrate` lints the DSL first: a model without a primary key parses fine but would
+create a table nobody designed, so the command refuses it. It only creates missing
+tables — altering one is a data-loss decision that belongs to explicit migrations.
+
 ## Packages
 
 | Package | Purpose |
