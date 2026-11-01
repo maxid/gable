@@ -4,9 +4,6 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-- `migrate`: Flyway-compatible `flyway_schema_history` store, line-based CRC32
-  checksums, versioned SQL loading, baseline/repair and MySQL/PostgreSQL locks.
-
 - Initial scaffold: `App`, `Container`, module lifecycle, typed configuration,
   `glogs` logging and stable error codes.
 - `web`: Gin-backed MVC, six-field envelope, binding/validation, request ids,

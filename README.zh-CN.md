@@ -127,6 +127,8 @@ users, err := repo.Query().Where(orm.Eq("name", "alice")).All(ctx)
 `db.AutoMigrate(model)` 只创建缺失表。MySQL DSN 需带 `parseTime=true`，否则 `DATETIME`/`TIMESTAMP`
 无法扫描进 `time.Time`。
 
+Schema 迁移在独立库 [`gmigrate`](https://github.com/maxid/gmigrate)；gable 只保留开发用的 `AutoMigrate`。
+
 ## DSL
 
 ```bash
@@ -228,7 +230,7 @@ server.Use(handlers.Middleware()) // 之后的受保护路由
 - cookie 会话、MFA；更多 provider preset。
 - `lowcode`：由应用托管 IR 与 vamis SDK。
 - ORM：关系/Preload、软删、ClickHouse/达梦/TDengine 方言。
-- `cli`：`gable gen`、`gable migrate`（在 `new`/`dev` 之外）。
+- `cli`：`gable gen`（在 `new`/`dev` 之外）。
 
 ## 安装
 

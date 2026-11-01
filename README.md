@@ -87,7 +87,6 @@ func main() {
 | `web` | Gin-backed MVC, envelope, binding/validation, OpenAPI + Swagger UI |
 | `tenant` | single/saas resolution, context, host login rules, impersonation |
 | `orm` | sqlx-backed repositories, tenant guard, migrations, gcosid keys |
-| `migrate` | Flyway-compatible history, versioned SQL files, baseline/repair |
 | `rpc` | typed Client with local and HTTP/JSON bindings, shared-key auth, pluggable resolver; `rpc/nacos` resolves through the registry |
 | `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply |
 | `auth` | password/JWT/opaque tokens, refresh rotation, passport endpoints, OAuth2 authorize/token |
@@ -145,29 +144,8 @@ mismatched tenant fails closed. `repo.Unscoped()` is the explicit escape hatch.
 `db.AutoMigrate(model)` creates missing tables only. MySQL DSNs should set
 `parseTime=true` so `DATETIME`/`TIMESTAMP` columns scan into `time.Time`.
 
-## Migrations
 
-`migrate` keeps Flyway's `flyway_schema_history` schema, including Flyway's
-line-based CRC32 checksum, so an existing Flyway-managed database can be read
-without copying rows. MySQL and PostgreSQL are supported.
-
-```go
-store, _ := migrate.OpenMySQL(dsn, migrate.WithTable(ns.FlywayTable("flyway_schema_history")))
-// MySQL DSNs with multi-statement files need ?multiStatements=true
-engine, _ := migrate.NewEngine(store)
-defer store.Close()
-
-ms, _ := migrate.LoadDir("db/migrations")
-applied, err := engine.Up(ctx, ms)     // pending V*__*.sql, in version order
-err = engine.Validate(ctx, ms)         // missing files / checksum drift / out of order
-err = engine.Baseline(ctx, "2026103100") // only on an empty history (adopt an existing schema)
-err = engine.Repair(ctx)               // remove failed rows; never rewrites checksums
-```
-
-Files are named `V<version>__<description>.sql`; versions are dotted numeric
-and unique across the tree. `Baseline` records a `BASELINE` row and `Up` skips
-versions at or below it. Use `migrate.WithOutOfOrder(true)` only when the
-deployment explicitly permits a lower version to run later.
+Schema migrations live in the independent [`gmigrate`](https://github.com/maxid/gmigrate) library; gable only keeps `AutoMigrate` for development.
 
 ## DSL
 
@@ -279,7 +257,7 @@ server.Use(handlers.Middleware()) // protected routes registered after this
 - Cookie sessions, MFA; more provider presets.
 - `lowcode`: serve the IR and the vamis SDK from an app.
 - ORM: relations/preload, soft delete, ClickHouse/DM/TDengine dialects.
-- `cli`: `gable gen`, `gable migrate` (in addition to `new`/`dev`).
+- `cli`: `gable gen` (in addition to `new`/`dev`).
 
 ## Install
 

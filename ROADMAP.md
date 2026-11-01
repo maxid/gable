@@ -9,7 +9,6 @@
 - [x] Namespace: gable prefix config, gns context/Store SPI, gcache-backed Store adapter
 - [x] Tenant: single/saas modes, host login rules, fail-closed scope, impersonation
 - [x] ORM core: models, query builder, CRUD, tenant guard, gcosid keys, AutoMigrate (MySQL/PostgreSQL)
-- [x] Migrate: Flyway-compatible history, CRC32 checksums, baseline/repair (MySQL/PostgreSQL)
 - [ ] ORM: relations/Preload, soft delete/retain, ClickHouse/DM/TDengine dialects
 - [x] Pilot: tenant-scoped task board (single/saas, memory/ORM, OpenAPI)
 - [x] DSL: Model/Table/Form/Page, lint, DDL/IR preview, idempotent apply (file store)
