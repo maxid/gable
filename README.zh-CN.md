@@ -74,7 +74,8 @@ func main() {
 | `web` | Gin MVC、包络、绑定/校验、OpenAPI 与 Swagger UI |
 | `tenant` | single/saas 解析、上下文、登录 Host 规则、代入 |
 | `orm` | sqlx Repository、租户守卫、迁移、gcosid 主键 |
-| `dsl` | gable/v1 资源、lint、DDL、低码 IR、apply |
+| `plugin` | 能力集合：按 id 选择、解析依赖、确定性顺序、版本清单、可选生命周期；`plugin.From` 适配自带容器或生命周期的模块 |
+| `dsl` | gable/v1 资源、lint、DDL、低码 IR、apply、文件/数据库存储 |
 | `auth` | 密码/JWT/opaque token、refresh 轮换、passport 端点、OAuth2 authorize/token |
 | `cache` | 继承应用 namespace 的 gcache 构造器 |
 | `namespace` | gcache 驱动的 `gns.Store` 实现（内存或 Redis） |
@@ -155,7 +156,27 @@ gable dsl mcp --dir resources
 ```
 
 数据 API 兼容 vamis CRUD 的 `page/perPage/orderBy/orderDir` 参数，并执行 Model 的租户守卫。
-数据库存储、diff/revision 与 Api/Mcp kind 是下一刀。
+
+### 用数据库存储资源
+
+目录是 GitOps 路径；多个实例共用一份定义、或需要在运行时编辑时走数据库。两种存储写的是
+同一份规范化 YAML，所以同一资源不论来自哪种存储，内容都一样。
+
+```bash
+# 目录 -> 数据库（先 lint，只写发生变化的文档）
+gable dsl push --dir resources --dsn 'user:pass@tcp(127.0.0.1:3306)/app?parseTime=true'
+
+# 服务读取 push 写入的内容，而不是目录
+gable dsl serve --load db --dsn 'user:pass@tcp(127.0.0.1:3306)/app?parseTime=true'
+```
+
+库侧接口是 `dsl.NewDBStore`（`Migrate`/`Load`/`Save`），背后两张表：
+`gable_dsl_resource`（每个 `Kind/name` 一行，存当前文档与 revision）与
+`gable_dsl_revision`（每次写入的文档，供下一刀的 diff/历史使用）。`Save` 先校验整个集合，
+跳过没有变化的文档，其余在一个事务里写入——revision 由数据库分配，两个实例同时保存不会撞号。
+删除不是隐式的：从集合里去掉一个资源，库里的行仍在。
+
+基于这些 revision 的 diff/dry-run 与 Api/Mcp kind 是下一刀。
 
 ## 命名空间
 

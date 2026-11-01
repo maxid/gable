@@ -102,6 +102,24 @@ Three properties matter:
 Unlike the platform's `internal/plugin`, there is no package-level registry and no panic
 on duplicates: wiring stays explicit so a test can build an app in isolation.
 
+A module that already has its own shape — takes its own container type, or carries its own
+lifecycle interface — joins without being rewritten, by describing it with closures:
+
+```go
+module, err := plugin.From(plugin.Spec{
+	ID:        "cache",
+	Version:   "1.0.0",
+	DependsOn: []string{"log"},
+	Register:  func(c plugin.Container) error { return cache.Register(c.(*platform.Container)) },
+	Start:     cache.Start,
+	Stop:      cache.Stop,
+})
+set.Add(module)
+```
+
+Everything the manifest shows comes from the `Spec` — nothing is inferred — and a spec
+without hooks stays wiring-only, so it never appears as started.
+
 ## Conversations with tools
 
 ```go
@@ -149,7 +167,7 @@ tables — altering one is a data-loss decision that belongs to explicit migrati
 | `plugin` | capability set: select by id, resolve dependencies, deterministic order, version manifest, optional lifecycle |
 | `mcp` | exposes operations as MCP tools over Streamable HTTP, with a shared-key transport check |
 | `ai` | tool-calling conversation loop over `gai`, with bounded rounds and bounded history |
-| `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply |
+| `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply, file/database store |
 | `auth` | password/JWT/opaque tokens, refresh rotation, passport endpoints, OAuth2 authorize/token |
 | `cache` | gcache constructor that inherits the application namespace |
 | `namespace` | gcache-backed `gns.Store` implementation (memory or Redis) |
@@ -235,8 +253,31 @@ gable dsl mcp --dir resources
 ```
 
 The data API accepts vamis CRUD parameters (`page`, `perPage`, `orderBy`,
-`orderDir`) and enforces the Model's tenant guard. The database store,
-diff/revision and the Api/Mcp kinds are the next slice.
+`orderDir`) and enforces the Model's tenant guard.
+
+### Storing resources in a database
+
+A directory is the GitOps path; a database is the path for several instances that
+share one definition or edit resources at runtime. Both store the same normalized
+YAML, so a resource looks identical whichever store produced it.
+
+```bash
+# directory -> database (linted first, only changed documents are written)
+gable dsl push --dir resources --dsn 'user:pass@tcp(127.0.0.1:3306)/app?parseTime=true'
+
+# serve what the push stored, instead of the directory
+gable dsl serve --load db --dsn 'user:pass@tcp(127.0.0.1:3306)/app?parseTime=true'
+```
+
+`dsl.NewDBStore` is the library side (`Migrate`, `Load`, `Save`). Two tables back it:
+`gable_dsl_resource` (one row per `Kind/name`, with the current document and revision)
+and `gable_dsl_revision` (the same document at every revision it was written, for the
+diff/history slice). `Save` lints the whole set, skips documents that did not change,
+and writes the rest in one transaction — the revision number is assigned by the
+database, so two instances saving at once cannot hand out the same one. Deleting a
+resource is not implicit: dropping it from the set leaves the row in place.
+
+The diff/dry-run over those revisions and the Api/Mcp kinds are the next slice.
 
 ## Namespaces
 

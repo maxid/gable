@@ -16,11 +16,22 @@ All notable changes to this project will be documented in this file.
 - Pilot example: tenant-scoped task board with memory/ORM stores, single/saas
   modes, CRUD and OpenAPI.
 - Fix: pagination now inserts a space before `LIMIT` when an `ORDER BY` is present.
+- Fix: `orm.Open` accepted `postgres` as a dialect but handed it to `sql.Connect`
+  as a driver name; PostgreSQL is reached through `pgx`, so every alias now opens
+  the driver that actually registered itself.
 - DSL first slice: `gable/v1` Model/Table/Form/Page, lint, Model DDL,
   `lcdp.ir/v1` previews, idempotent file apply and `gable dsl` commands.
 - DSL runtime: dynamic `/dsl/data/<model>` CRUD with tenant guard, vamis
   pagination aliases and `gable dsl serve`; MCP tools over stdio
   (`gable dsl mcp`).
+- DSL database store: `dsl.NewDBStore` migrates `gable_dsl_resource` and
+  `gable_dsl_revision`, loads a set back from the rows and saves only the
+  documents that changed, in one transaction, keeping every revision; the
+  revision number is assigned by the database. `gable dsl push` moves a
+  directory into the store, `gable dsl serve --load db` serves it back.
+- Plugins: `plugin.From(plugin.Spec{...})` adapts a module that keeps its own
+  container type or lifecycle, without renaming it; a spec without hooks stays
+  wiring-only, so it is never counted as started.
 - Namespace: gable keeps the cache/Flyway/CosID/cluster prefix config; `gns` is
   limited to the namespace value, context and Store SPI. `namespace` adapts a
   gcache instance as the Store implementation; gcache/gbus no longer depend on
