@@ -76,6 +76,32 @@ func main() {
 }
 ```
 
+## Managing capabilities
+
+Capabilities are chosen by name rather than registered one by one:
+
+```go
+set := plugin.NewSet()
+set.Add(plugin.Static("log", "1.0.0", logCapability))
+set.Add(plugin.Static("cache", "1.0.0", cacheCapability))   // DependsOn: log
+set.Add(plugin.Static("web", "1.0.0", webCapability))       // DependsOn: cache
+
+assembly, err := set.Select("web")        // -> log, cache, web (dependency order)
+err = assembly.Start(ctx, container)      // register + start; a failure rolls back
+defer assembly.Stop(ctx)
+```
+
+Three properties matter:
+
+- **Deterministic order** — ties break on id, so a rolling restart cannot reorder
+  capabilities;
+- **Selection is validated at startup** — an unknown capability, a dependency that is not
+  in the binary, or a cycle is an error, never a quietly smaller assembly;
+- **Lifecycle is optional** — a wiring-only capability needs no empty `Start`/`Stop`.
+
+Unlike the platform's `internal/plugin`, there is no package-level registry and no panic
+on duplicates: wiring stays explicit so a test can build an app in isolation.
+
 ## Conversations with tools
 
 ```go
@@ -120,6 +146,7 @@ tables — altering one is a data-loss decision that belongs to explicit migrati
 | `tenant` | single/saas resolution, context, host login rules, impersonation |
 | `orm` | sqlx-backed repositories, tenant guard, migrations, gcosid keys |
 | `rpc` | typed Client with local and HTTP/JSON bindings, shared-key auth, pluggable resolver; `rpc/nacos` resolves through the registry |
+| `plugin` | capability set: select by id, resolve dependencies, deterministic order, version manifest, optional lifecycle |
 | `mcp` | exposes operations as MCP tools over Streamable HTTP, with a shared-key transport check |
 | `ai` | tool-calling conversation loop over `gai`, with bounded rounds and bounded history |
 | `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply |
