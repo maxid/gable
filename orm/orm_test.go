@@ -278,3 +278,26 @@ func TestAutoIncrementSchema(t *testing.T) {
 		t.Fatalf("postgres = %s", postgres)
 	}
 }
+
+// Every dialect alias resolves to a driver name the database/sql package actually has
+// registered: "postgres" is a dialect, pgx's stdlib adapter is the driver.
+func TestDriverName(t *testing.T) {
+	cases := map[string]string{
+		"mysql":      "mysql",
+		"postgres":   "pgx",
+		"postgresql": "pgx",
+		"pg":         "pgx",
+	}
+	for alias, want := range cases {
+		dialect, err := DialectFor(alias)
+		if err != nil {
+			t.Fatalf("%s: %v", alias, err)
+		}
+		if got := driverName(dialect); got != want {
+			t.Fatalf("%s: driver = %q, want %q", alias, got, want)
+		}
+	}
+	if _, err := DialectFor("sqlite"); err == nil {
+		t.Fatal("an unsupported driver must be rejected")
+	}
+}

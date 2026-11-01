@@ -85,16 +85,30 @@ type DB struct {
 }
 
 // Open connects to a database and selects its dialect.
+//
+// The driver may name a dialect rather than a registered database/sql driver: PostgreSQL
+// is reached through pgx, whose stdlib adapter registers itself as "pgx", so "postgres",
+// "postgresql" and "pg" all open the same driver.
 func Open(driver, dsn string) (*DB, error) {
 	dialect, err := DialectFor(driver)
 	if err != nil {
 		return nil, err
 	}
-	db, err := sqlx.Connect(driver, dsn)
+	db, err := sqlx.Connect(driverName(dialect), dsn)
 	if err != nil {
 		return nil, fmt.Errorf("orm: connect %s: %w", driver, err)
 	}
 	return &DB{DB: db, dialect: dialect}, nil
+}
+
+// driverName is the name the database/sql driver registered itself under. Every dialect
+// has exactly one, so accepting aliases in DialectFor cannot hand Connect a name nobody
+// registered.
+func driverName(dialect Dialect) string {
+	if dialect.Name() == "postgres" {
+		return "pgx"
+	}
+	return dialect.Name()
 }
 
 // New wraps an existing sqlx.DB.
