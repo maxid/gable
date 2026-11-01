@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -103,5 +104,44 @@ func TestDSLCLILintFailure(t *testing.T) {
 	writeCLI(t, dir, "task.model.yaml", "apiVersion: gable/v1\nkind: Model\nmetadata: {name: task}\nspec: {fields: []}\n")
 	if _, err := runDSL(t, "lint", "--dir", dir); err == nil {
 		t.Fatal("expected lint error")
+	}
+}
+
+func TestDSLCLIPushRequiresDSN(t *testing.T) {
+	dir := t.TempDir()
+	writeCLI(t, dir, "task.model.yaml", cliModel)
+	if _, err := runDSL(t, "push", "--dir", dir); err == nil || !strings.Contains(err.Error(), "--dsn") {
+		t.Fatalf("err = %v, want a missing --dsn", err)
+	}
+}
+
+// Lint runs before the database is opened: a broken directory must not require a
+// reachable server to be reported.
+func TestDSLCLIPushLintsBeforeConnecting(t *testing.T) {
+	dir := t.TempDir()
+	writeCLI(t, dir, "task.model.yaml", "apiVersion: gable/v1\nkind: Model\nmetadata: {name: task}\nspec: {fields: []}\n")
+	_, err := runDSL(t, "push", "--dir", dir, "--dsn", "user:pass@tcp(127.0.0.1:1)/app")
+	if err == nil || !strings.Contains(err.Error(), "field") {
+		t.Fatalf("err = %v, want the lint issue", err)
+	}
+}
+
+func TestDSLCLIServeRejectsUnknownLoadMode(t *testing.T) {
+	if _, err := runDSL(t, "serve", "--dsn", "unused", "--load", "cache"); err == nil || !strings.Contains(err.Error(), "--load") {
+		t.Fatalf("err = %v, want the invalid --load value", err)
+	}
+}
+
+func TestLoadDSLSetFromDirectory(t *testing.T) {
+	dir := t.TempDir()
+	writeCLI(t, dir, "task.model.yaml", cliModel)
+	writeCLI(t, dir, "task.table.yaml", cliTable)
+
+	set, err := loadDSLSet(context.Background(), dir, "file", nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(set.Models) != 1 || len(set.Tables) != 1 {
+		t.Fatalf("set = %+v", set)
 	}
 }
