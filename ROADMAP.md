@@ -23,7 +23,8 @@
 - [x] OIDC id_token/JWKS/userinfo (RS256)
 - [ ] Cookie sessions, MFA
 - [x] `rpc`: local + HTTP/JSON bindings with a resolver port (Nacos adapter lives with the deployment)
-- [ ] `gai` and `gmcp` adapters
+- [x] `mcp`: operations as MCP tools over HTTP (shared-key transport check)
+- [ ] `gai`: LLM provider wiring (adapter exists in `gai/openai`)
 - [ ] Low-code resources compiled to the LCDP IR
 - [x] CLI: `new`, `dev`, `version`
 - [ ] CLI: `gen`, `migrate` (the library exists; the command is not wired)
