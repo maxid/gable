@@ -23,6 +23,8 @@ type Field struct {
 	AutoCreate bool
 	AutoUpdate bool
 	Unique     bool
+	SoftDelete bool
+	Retain     bool
 	Text       bool
 	Size       int
 }
@@ -32,10 +34,16 @@ type Model struct {
 	Table      string
 	Type       reflect.Type
 	Fields     []Field
+	Relations  []Relation
 	PK         *Field
 	Tenant     *Field
 	AutoCreate *Field
 	AutoUpdate *Field
+	// SoftDelete and Retain are the two supported ways of hiding a deleted row:
+	// a timestamp column that stops being NULL, or a flag that flips. Both are
+	// excluded by default and reachable only through Unscoped.
+	SoftDelete *Field
+	Retain     *Field
 }
 
 var modelCache sync.Map // "type|table" -> *Model
@@ -77,6 +85,13 @@ func buildModel(t reflect.Type, table string) (*Model, error) {
 		if tag == "-" {
 			continue
 		}
+		// A relation is not a column: it is loaded by Preload, never selected.
+		if relation, ok, err := relationOf(structField, tag); err != nil {
+			return nil, err
+		} else if ok {
+			model.Relations = append(model.Relations, relation)
+			continue
+		}
 
 		field := Field{
 			GoName: structField.Name,
@@ -99,6 +114,10 @@ func buildModel(t reflect.Type, table string) (*Model, error) {
 				field.AutoUpdate = true
 			case part == "unique":
 				field.Unique = true
+			case part == "soft_delete":
+				field.SoftDelete = true
+			case part == "retain":
+				field.Retain = true
 			case strings.HasPrefix(part, "column="):
 				field.Column = strings.TrimSpace(strings.TrimPrefix(part, "column="))
 			case strings.HasPrefix(part, "size="):
@@ -113,6 +132,12 @@ func buildModel(t reflect.Type, table string) (*Model, error) {
 		}
 		if field.Tenant && structField.Type.Kind() != reflect.Int64 {
 			return nil, fmt.Errorf("orm: tenant field %s must be int64", structField.Name)
+		}
+		if field.SoftDelete && structField.Type != reflect.TypeOf(&time.Time{}) {
+			return nil, fmt.Errorf("orm: soft_delete field %s must be *time.Time", structField.Name)
+		}
+		if field.Retain && structField.Type.Kind() != reflect.Bool {
+			return nil, fmt.Errorf("orm: retain field %s must be bool", structField.Name)
 		}
 
 		model.Fields = append(model.Fields, field)
@@ -138,6 +163,21 @@ func buildModel(t reflect.Type, table string) (*Model, error) {
 		if field.AutoUpdate {
 			model.AutoUpdate = field
 		}
+		if field.SoftDelete {
+			if model.SoftDelete != nil {
+				return nil, fmt.Errorf("orm: %s has more than one soft_delete field", t.Name())
+			}
+			model.SoftDelete = field
+		}
+		if field.Retain {
+			if model.Retain != nil {
+				return nil, fmt.Errorf("orm: %s has more than one retain field", t.Name())
+			}
+			model.Retain = field
+		}
+	}
+	if model.SoftDelete != nil && model.Retain != nil {
+		return nil, fmt.Errorf("orm: %s declares both soft_delete and retain; pick one", t.Name())
 	}
 	if model.PK == nil {
 		return nil, fmt.Errorf("orm: %s has no primary key field", t.Name())

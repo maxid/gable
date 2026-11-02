@@ -175,6 +175,9 @@ func (r *Repo[T]) Create(ctx context.Context, entity *T) error {
 }
 
 // Update writes every mutable column by primary key.
+//
+// soft_delete and retain columns are owned by Delete and Restore: writing an entity that
+// carries a stale timestamp must not resurrect or re-delete a row.
 func (r *Repo[T]) Update(ctx context.Context, entity *T) error {
 	if entity == nil {
 		return fmt.Errorf("orm: nil entity")
@@ -206,7 +209,7 @@ func (r *Repo[T]) Update(ctx context.Context, entity *T) error {
 	var args []any
 	index := 1
 	for _, field := range model.Fields {
-		if field.PK || field.Tenant || field.AutoCreate {
+		if field.PK || field.Tenant || field.AutoCreate || field.SoftDelete || field.Retain {
 			continue
 		}
 		sets = append(sets, dialect.Quote(field.Column)+" = "+dialect.Placeholder(index))
@@ -217,7 +220,7 @@ func (r *Repo[T]) Update(ctx context.Context, entity *T) error {
 		return fmt.Errorf("orm: no mutable columns")
 	}
 
-	where, whereArgs, err := r.pkWhereFrom(ctx, pk.Int(), &index)
+	where, whereArgs, err := r.pkWhereWith(ctx, pk.Int(), &index, false)
 	if err != nil {
 		return err
 	}
@@ -226,10 +229,45 @@ func (r *Repo[T]) Update(ctx context.Context, entity *T) error {
 	return execAffected(r.db.ExecContext(ctx, statement, args...))
 }
 
-// Delete removes one row by primary key.
+// Delete removes the row, or hides it when the model declares soft_delete or retain.
+//
+// Both spellings mean the same thing to callers: the row stops appearing in scoped
+// queries. Use Purge to remove it for good.
 func (r *Repo[T]) Delete(ctx context.Context, id int64) error {
+	model := r.model
+	if model.SoftDelete == nil && model.Retain == nil {
+		return r.Purge(ctx, id)
+	}
 	dialect := r.db.dialect
-	where, args, err := r.pkWhere(ctx, id)
+	now := time.Now()
+	var sets []string
+	var args []any
+	index := 1
+	if model.SoftDelete != nil {
+		sets = append(sets, dialect.Quote(model.SoftDelete.Column)+" = "+dialect.Placeholder(index))
+		args = append(args, now)
+		index++
+	}
+	if model.Retain != nil {
+		sets = append(sets, dialect.Quote(model.Retain.Column)+" = "+dialect.Placeholder(index))
+		args = append(args, true)
+		index++
+	}
+	where, whereArgs, err := r.pkWhereWith(ctx, id, &index, false)
+	if err != nil {
+		return err
+	}
+	args = append(args, whereArgs...)
+	statement := "UPDATE " + dialect.Quote(model.Table) + " SET " + strings.Join(sets, ", ") + " WHERE " + where
+	return execAffected(r.db.ExecContext(ctx, statement, args...))
+}
+
+// Purge removes the row for good, ignoring soft_delete and retain. It is the explicit
+// escape hatch for retention jobs and for tests; ordinary code should call Delete.
+func (r *Repo[T]) Purge(ctx context.Context, id int64) error {
+	dialect := r.db.dialect
+	// Purging a hidden row is the whole point, so the guard must not select it out.
+	where, args, err := r.hiddenWhere(ctx, id, nil)
 	if err != nil {
 		return err
 	}
@@ -237,11 +275,44 @@ func (r *Repo[T]) Delete(ctx context.Context, id int64) error {
 	return execAffected(r.db.ExecContext(ctx, statement, args...))
 }
 
-func (r *Repo[T]) pkWhere(ctx context.Context, id int64) (string, []any, error) {
-	return r.pkWhereFrom(ctx, id, nil)
+// Restore clears soft_delete and retain on one row.
+func (r *Repo[T]) Restore(ctx context.Context, id int64) error {
+	model := r.model
+	if model.SoftDelete == nil && model.Retain == nil {
+		return fmt.Errorf("orm: %s is not soft-deleted", model.Table)
+	}
+	dialect := r.db.dialect
+	var sets []string
+	var args []any
+	index := 1
+	if model.SoftDelete != nil {
+		sets = append(sets, dialect.Quote(model.SoftDelete.Column)+" = NULL")
+	}
+	if model.Retain != nil {
+		sets = append(sets, dialect.Quote(model.Retain.Column)+" = "+dialect.Placeholder(index))
+		args = append(args, false)
+		index++
+	}
+	// The row is hidden, so the guard is dropped and the key alone selects it.
+	where, whereArgs, err := r.hiddenWhere(ctx, id, &index)
+	if err != nil {
+		return err
+	}
+	args = append(args, whereArgs...)
+	statement := "UPDATE " + dialect.Quote(model.Table) + " SET " + strings.Join(sets, ", ") + " WHERE " + where
+	return execAffected(r.db.ExecContext(ctx, statement, args...))
 }
 
-func (r *Repo[T]) pkWhereFrom(ctx context.Context, id int64, start *int) (string, []any, error) {
+func (r *Repo[T]) pkWhere(ctx context.Context, id int64) (string, []any, error) {
+	return r.pkWhereWith(ctx, id, nil, false)
+}
+
+// hiddenWhere selects a row that the guard would otherwise skip, so Restore can reach it.
+func (r *Repo[T]) hiddenWhere(ctx context.Context, id int64, start *int) (string, []any, error) {
+	return r.pkWhereWith(ctx, id, start, true)
+}
+
+func (r *Repo[T]) pkWhereWith(ctx context.Context, id int64, start *int, includeHidden bool) (string, []any, error) {
 	dialect := r.db.dialect
 	index := 1
 	if start != nil {
@@ -258,6 +329,17 @@ func (r *Repo[T]) pkWhereFrom(ctx context.Context, id int64, start *int) (string
 		parts = append(parts, dialect.Quote(r.model.Tenant.Column)+" = "+dialect.Placeholder(index))
 		args = append(args, current.ID)
 		index++
+	}
+	if !includeHidden {
+		visible, visibleArgs, err := visibleClause(r.model, dialect, index)
+		if err != nil {
+			return "", nil, err
+		}
+		if visible != "" {
+			parts = append(parts, visible)
+			args = append(args, visibleArgs...)
+			index += len(visibleArgs)
+		}
 	}
 	parts = append(parts, dialect.Quote(r.model.PK.Column)+" = "+dialect.Placeholder(index))
 	args = append(args, id)

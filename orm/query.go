@@ -100,6 +100,7 @@ type Query[T any] struct {
 	limit    int
 	offset   int
 	unscoped bool
+	preloads map[string]relationLoader
 	err      error
 }
 
@@ -149,7 +150,8 @@ func (q *Query[T]) Page(number, size int) *Query[T] {
 	return q
 }
 
-// Unscoped disables the tenant predicate. Use it only for privileged reads.
+// Unscoped disables the tenant, soft-delete and retain predicates. Use it only for
+// privileged reads and for writing a deleted row back.
 func (q *Query[T]) Unscoped() *Query[T] {
 	q.unscoped = true
 	return q
@@ -200,7 +202,13 @@ func (q *Query[T]) All(ctx context.Context) ([]T, error) {
 		}
 		results = append(results, value)
 	}
-	return results, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := q.preload(ctx, results); err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 // First returns the first matching row or ErrNotFound.
@@ -255,6 +263,17 @@ func (q *Query[T]) where(ctx context.Context) (string, []any, error) {
 		clauses = append(clauses, dialect.Quote(model.Tenant.Column)+" = "+dialect.Placeholder(index))
 		args = append(args, current.ID)
 		index++
+	}
+	if !q.unscoped {
+		visible, visibleArgs, err := visibleClause(model, dialect, index)
+		if err != nil {
+			return "", nil, err
+		}
+		if visible != "" {
+			clauses = append(clauses, visible)
+			args = append(args, visibleArgs...)
+			index += len(visibleArgs)
+		}
 	}
 
 	for _, cond := range q.conds {
