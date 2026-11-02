@@ -26,7 +26,7 @@
 - [x] OAuth2 授权服务器：authorize + code + PKCE + consent + metadata
 - [x] 社交登录回调（/oauth2/login|callback/:provider）
 - [x] OIDC id_token/JWKS/userinfo（RS256）
-- [ ] Cookie 会话、MFA
+- [x] Cookie 会话与 MFA（TOTP + 一次性恢复码 + 登录 ticket）
 - [x] `rpc`：local + HTTP/JSON binding，resolver 端口（Nacos adapter 随部署提供）
 - [ ] `gai` 与 `gmcp` adapter
 - [ ] 低代码资源编译到 LCDP IR

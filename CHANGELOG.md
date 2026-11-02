@@ -29,6 +29,12 @@ All notable changes to this project will be documented in this file.
   documents that changed, in one transaction, keeping every revision; the
   revision number is assigned by the database. `gable dsl push` moves a
   directory into the store, `gable dsl serve --load db` serves it back.
+- Auth cookie sessions: `Handlers.Cookies` carries the same tokens in HttpOnly
+  cookies, the middleware reads header first and cookie second, and logout
+  revokes and expires them.
+- Auth second factor: TOTP enrollment/activation, `{mfaRequired, ticket}` login
+  for active accounts, single-use tickets and hashed one-time recovery codes;
+  the factor can only be disabled with a working code.
 - ORM relations and delete markers: `belongs_to`/`has_many` fields are loaded by an
   explicit `Preload` (one query per relation for the whole result set, keeping the
   parent's tenant and delete guards), and a `soft_delete` timestamp or `retain` flag

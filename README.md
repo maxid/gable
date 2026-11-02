@@ -386,6 +386,47 @@ server.Use(handlers.Middleware()) // protected routes registered after this
   the application maps the external profile to a local user and calls
   `TokenService`.
 
+### Cookie sessions
+
+A browser cannot put an `Authorization` header on a page navigation, so a
+frontend that the application itself serves needs the session in a cookie:
+
+```go
+handlers.Cookies = &auth.CookieSession{Secure: true} // HttpOnly, SameSite=Lax
+```
+
+The cookie carries the same access and refresh tokens the body returns — it is a
+transport, not a second session format. The middleware reads the header first and
+the cookie second; logout revokes the token and expires both cookies; refresh
+accepts the refresh cookie when the body omits it. Note that revoking a JWT only
+stops future refresh: a stateless JWT stays valid until it expires, which is why
+`AccessOpaque` is the format to use when logout must be immediate.
+
+### Second factor (TOTP)
+
+MFA is per account, and opt-in until enrollment finishes:
+
+```go
+mfa, _ := auth.NewMFAService(auth.DefaultTOTPConfig("myapp"), auth.NewMemoryMFAStore())
+handlers.MFA = mfa
+```
+
+- `POST /passport/mfa/enroll` returns the base32 secret, an `otpauth://` URL and
+  ten recovery codes — shown once, because a code that can be shown again is not
+  a second factor;
+- `POST /passport/mfa/activate` needs a code from the authenticator, so a
+  half-finished enrollment cannot lock anyone out;
+- once active, `POST /passport/login` answers `{mfaRequired, ticket}` instead of
+  tokens; `POST /passport/mfa/verify` exchanges the ticket plus a code for tokens;
+- the ticket is unguessable, lives five minutes and is consumed by the first
+  attempt even when the code is wrong, so it buys exactly one guess;
+- recovery codes are stored hashed and each works once;
+- `POST /passport/mfa/disable` requires a working code: a stolen session alone
+  must not be able to remove the factor.
+
+`MFAStore` and `ChallengeStore` default to memory; a deployment with more than one
+replica needs shared implementations of both.
+
 ## Examples
 
 - `examples/hello` — minimal HTTP app with OpenAPI and Swagger UI.

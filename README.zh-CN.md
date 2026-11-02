@@ -275,6 +275,39 @@ server.Use(handlers.Middleware()) // 之后的受保护路由
 - `auth/oauthclient` 负责外部 provider 的 authorization-code + PKCE；应用把外部资料
   映射到本地用户后调用 `TokenService`。
 
+### Cookie 会话
+
+浏览器无法在页面导航时带 `Authorization` 头，所以由应用自己托管前端时，会话要放进 cookie：
+
+```go
+handlers.Cookies = &auth.CookieSession{Secure: true} // HttpOnly、SameSite=Lax
+```
+
+cookie 里就是响应体里同一对 token——它只是传输方式，不是第二套会话格式。中间件先看请求头、
+再看 cookie；logout 撤销 token 并让两个 cookie 过期；refresh 在请求体没带 token 时读 cookie。
+注意：撤销 JWT 只影响后续 refresh，无状态 JWT 在过期前仍然有效——需要“登出即刻失效”时用
+`AccessOpaque`。
+
+### 第二因子（TOTP）
+
+MFA 按账号开启，且只有走完激活才生效：
+
+```go
+mfa, _ := auth.NewMFAService(auth.DefaultTOTPConfig("myapp"), auth.NewMemoryMFAStore())
+handlers.MFA = mfa
+```
+
+- `POST /passport/mfa/enroll` 返回 base32 secret、`otpauth://` URL 与 10 个恢复码——只显示一次，
+  能被再次展示的码就不是第二因子了；
+- `POST /passport/mfa/activate` 必须用验证器里的码确认，所以“ enrolling 到一半”不会把任何人锁在外面；
+- 激活后 `POST /passport/login` 不再返回 token，而是 `{mfaRequired, ticket}`；
+  `POST /passport/mfa/verify` 用 ticket + 验证码换 token；
+- ticket 不可猜、有效期 5 分钟，且**第一次尝试即消耗**（即使验证码是错的），给不了暴力试错空间；
+- 恢复码落库为哈希，每个只能用一次；
+- `POST /passport/mfa/disable` 需要有效验证码：光有被盗会话不能把因子关掉。
+
+`MFAStore` 与 `ChallengeStore` 默认内存实现；多副本部署需要两者的共享实现。
+
 ## 示例
 
 - `examples/hello`：最小 HTTP 应用，带 OpenAPI/Swagger。
