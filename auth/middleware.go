@@ -17,7 +17,7 @@ import (
 // context. Install it on protected routes only.
 func (h *Handlers) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token := bearerToken(c.Request)
+		token := h.accessToken(c.Request)
 		if token == "" {
 			abortUnauthorized(c, ErrMissingToken)
 			return

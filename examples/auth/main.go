@@ -50,6 +50,18 @@ func main() {
 	}
 
 	handlers := auth.NewHandlers(service, tenant.NewSingleLoginResolver(tenant.DefaultConfig()))
+	// A browser frontend gets the tokens in HttpOnly cookies; an API client keeps reading
+	// the response body.
+	session := auth.DefaultCookieSession()
+	handlers.Cookies = &session
+	// A second factor is optional per account: it only changes login for accounts that
+	// finished enrollment.
+	mfa, err := auth.NewMFAService(auth.DefaultTOTPConfig("auth-example"), auth.NewMemoryMFAStore())
+	if err != nil {
+		log.Fatal(err)
+	}
+	handlers.MFA = mfa
+
 	server := web.New(web.WithTitle("auth-example"), web.WithVersion(gable.Version))
 	server.Register(handlers)
 	server.Use(handlers.Middleware())

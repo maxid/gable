@@ -45,6 +45,18 @@ type Handlers struct {
 	Authorizer Authorizer
 	LoginURL   func(returnTo string) string
 	CodeTTL    time.Duration
+	// Cookies, when set, carries the tokens in HttpOnly cookies as well as the response
+	// body. It is what a browser-hosted frontend needs; API clients can keep reading the
+	// body and ignore it.
+	Cookies *CookieSession
+	// MFA, when set, turns a correct password into a challenge until a second factor is
+	// presented. Accounts without an active second factor log in exactly as before.
+	MFA *MFAService
+	// Challenges keeps the pending second-factor tickets. A nil value falls back to
+	// memory once MFA is enabled.
+	Challenges ChallengeStore
+	// ChallengeTTL bounds a pending ticket; zero means five minutes.
+	ChallengeTTL time.Duration
 }
 
 // NewHandlers returns handlers for a token service.
@@ -69,6 +81,14 @@ func (h *Handlers) Mount(router *web.Router, passportPrefix string) {
 	router.GET(passportPrefix+"/logout", h.logout).Doc("revoke the current token")
 	router.GET(passportPrefix+"/me", h.me).Doc("current principal")
 
+	if h.MFA != nil {
+		router.POST(passportPrefix+"/mfa/verify", h.mfaVerify).Doc("exchange a login ticket and a code for tokens").In(mfaVerifyForm{}).Out(TokenVO{})
+		router.GET(passportPrefix+"/mfa/status", h.mfaStatus).Doc("second-factor status of the current account").Out(MFAStatus{})
+		router.POST(passportPrefix+"/mfa/enroll", h.mfaEnroll).Doc("start second-factor enrollment").Out(Enrollment{})
+		router.POST(passportPrefix+"/mfa/activate", h.mfaActivate).Doc("confirm enrollment with a code").In(mfaCodeForm{})
+		router.POST(passportPrefix+"/mfa/disable", h.mfaDisable).Doc("turn the second factor off").In(mfaCodeForm{})
+	}
+
 	router.GET("/oauth2/authorize", h.authorize).Doc("OAuth2 authorization endpoint")
 	router.POST("/oauth2/authorize", h.authorize).Doc("OAuth2 authorization endpoint")
 	router.GET("/.well-known/oauth-authorization-server", h.metadata).Doc("OAuth2 server metadata")
@@ -88,8 +108,10 @@ type loginForm struct {
 	TenantCode   string `json:"tenantCode"`
 }
 
+// refreshForm does not require the token in the body: a cookie session sends it in the
+// refresh cookie instead.
 type refreshForm struct {
-	RefreshToken string `json:"refreshToken" binding:"required"`
+	RefreshToken string `json:"refreshToken"`
 }
 
 func (h *Handlers) login(ctx *web.Context) error {
@@ -101,16 +123,21 @@ func (h *Handlers) login(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	pair, err := h.Service.Login(ctx.Request().Context(), LoginRequest{
+	request := LoginRequest{
 		TenantID:     tenantID,
 		Username:     form.Username,
 		Password:     form.Password,
 		ClientID:     form.ClientID,
 		ClientSecret: form.ClientSecret,
-	})
+	}
+	if h.MFA != nil {
+		return h.loginWithMFA(ctx, request)
+	}
+	pair, err := h.Service.Login(ctx.Request().Context(), request)
 	if err != nil {
 		return err
 	}
+	h.writeSession(ctx, pair)
 	return ctx.JSON(http.StatusOK, tokenVO(pair))
 }
 
@@ -119,25 +146,30 @@ func (h *Handlers) refresh(ctx *web.Context) error {
 	if err := ctx.Bind(&form); err != nil {
 		return err
 	}
-	pair, err := h.Service.Refresh(ctx.Request().Context(), form.RefreshToken)
+	token := h.refreshToken(ctx.Request(), form.RefreshToken)
+	if token == "" {
+		return ErrInvalidGrant
+	}
+	pair, err := h.Service.Refresh(ctx.Request().Context(), token)
 	if err != nil {
 		return err
 	}
+	h.writeSession(ctx, pair)
 	return ctx.JSON(http.StatusOK, tokenVO(pair))
 }
 
 func (h *Handlers) logout(ctx *web.Context) error {
-	token := bearerToken(ctx.Request())
-	if token != "" {
+	if token := h.accessToken(ctx.Request()); token != "" {
 		_ = h.Service.Revoke(ctx.Request().Context(), token)
 	}
+	h.clearSession(ctx)
 	return ctx.JSON(http.StatusOK, true)
 }
 
 func (h *Handlers) me(ctx *web.Context) error {
 	principal, ok := PrincipalFromContext(ctx.Request().Context())
 	if !ok {
-		token := bearerToken(ctx.Request())
+		token := h.accessToken(ctx.Request())
 		if token == "" {
 			return ErrMissingToken
 		}
@@ -224,7 +256,7 @@ func (h *Handlers) jwks(ctx *web.Context) error {
 }
 
 func (h *Handlers) userInfo(ctx *web.Context) error {
-	token := bearerToken(ctx.Request())
+	token := h.accessToken(ctx.Request())
 	principal, err := h.Service.Verify(ctx.Request().Context(), token)
 	if err != nil {
 		return err

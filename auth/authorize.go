@@ -137,7 +137,7 @@ func (h *Handlers) authorize(ctx *web.Context) error {
 
 	principal, ok := PrincipalFromContext(ctx.Request().Context())
 	if !ok {
-		if token := bearerToken(ctx.Request()); token != "" {
+		if token := h.accessToken(ctx.Request()); token != "" {
 			if verified, err := h.Service.Verify(ctx.Request().Context(), token); err == nil {
 				principal, ok = verified, true
 			}

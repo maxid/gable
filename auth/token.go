@@ -159,20 +159,33 @@ func (s *TokenService) Issue(ctx context.Context, principal Principal) (*TokenPa
 
 // Login authenticates a username/password and issues tokens.
 func (s *TokenService) Login(ctx context.Context, request LoginRequest) (*TokenPair, error) {
+	principal, err := s.Authenticate(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	return s.issue(ctx, principal, true)
+}
+
+// Authenticate verifies a username/password and returns the principal without issuing
+// anything.
+//
+// It is split from Login so a second factor can be checked between the two: a caller that
+// needs MFA authenticates, holds the principal in a challenge, and only then issues.
+func (s *TokenService) Authenticate(ctx context.Context, request LoginRequest) (Principal, error) {
 	if s.users == nil {
-		return nil, ErrInvalidCredentials
+		return Principal{}, ErrInvalidCredentials
 	}
 	username := strings.TrimSpace(request.Username)
 	if username == "" || request.Password == "" {
-		return nil, ErrInvalidCredentials
+		return Principal{}, ErrInvalidCredentials
 	}
 
 	user, err := s.users.FindByUsername(ctx, request.TenantID, username)
 	if err != nil || user == nil {
-		return nil, ErrInvalidCredentials
+		return Principal{}, ErrInvalidCredentials
 	}
 	if user.Disabled {
-		return nil, ErrUserDisabled
+		return Principal{}, ErrUserDisabled
 	}
 
 	clientID := strings.TrimSpace(request.ClientID)
@@ -182,14 +195,14 @@ func (s *TokenService) Login(ctx context.Context, request LoginRequest) (*TokenP
 	var client *Client
 	if clientID != "" {
 		if s.clients == nil {
-			return nil, ErrInvalidClient
+			return Principal{}, ErrInvalidClient
 		}
 		client, err = s.clients.FindClient(ctx, clientID)
 		if err != nil || client == nil || client.Disabled {
-			return nil, ErrInvalidClient
+			return Principal{}, ErrInvalidClient
 		}
 		if client.Secret != "" && !secretEqual(client.Secret, request.ClientSecret) {
-			return nil, ErrInvalidClient
+			return Principal{}, ErrInvalidClient
 		}
 	}
 
@@ -198,7 +211,7 @@ func (s *TokenService) Login(ctx context.Context, request LoginRequest) (*TokenP
 		raw = user.Salt + ":" + raw
 	}
 	if err := s.passwords.Verify(user.PasswordHash, raw); err != nil {
-		return nil, ErrInvalidCredentials
+		return Principal{}, ErrInvalidCredentials
 	}
 
 	principal := Principal{
@@ -221,7 +234,7 @@ func (s *TokenService) Login(ctx context.Context, request LoginRequest) (*TokenP
 			principal.Scopes = client.Scopes
 		}
 	}
-	return s.issue(ctx, principal, true)
+	return principal, nil
 }
 
 // ClientCredentials issues an access token for a client without a user.
