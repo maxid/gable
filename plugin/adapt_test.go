@@ -3,6 +3,7 @@ package plugin_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/maxid/gable/plugin"
@@ -219,5 +220,88 @@ func TestFromAdaptsStopOnlyCapability(t *testing.T) {
 	events := rec.events()
 	if len(events) != 1 || events[0] != "stop:cache" {
 		t.Fatalf("events = %v", events)
+	}
+}
+
+// platformContainer mirrors the platform's concrete container: values in, values out, no
+// interface. The platform's modules take this type by pointer, which is exactly the
+// signature mismatch that gable's Module interface cannot accept.
+type platformContainer struct{ values map[string]any }
+
+func (c *platformContainer) Set(key string, value any) { c.values[key] = value }
+func (c *platformContainer) Get(key string) (any, bool) {
+	value, ok := c.values[key]
+	return value, ok
+}
+
+// platformModule has the platform's four methods: ID, Version, DependsOn and a Register
+// that takes the concrete container.
+type platformModule struct {
+	id      string
+	version string
+	deps    []string
+	started *bool
+}
+
+func (m platformModule) ID() string          { return m.id }
+func (m platformModule) Version() string     { return m.version }
+func (m platformModule) DependsOn() []string { return m.deps }
+func (m platformModule) Register(container *platformContainer) error {
+	container.Set(m.id+".registered", true)
+	return nil
+}
+
+// A platform module joins selection and the manifest without changing its own
+// signature: the closure does the narrowing assertion, and the lifecycle is forwarded.
+func TestFromAdaptsPlatformShapedModule(t *testing.T) {
+	started := false
+	mod := platformModule{id: "iam", version: "0.4.0", deps: []string{"log"}}
+	adapted, err := plugin.From(plugin.Spec{
+		ID:        mod.ID(),
+		Version:   mod.Version(),
+		DependsOn: mod.DependsOn(),
+		Register: func(c plugin.Container) error {
+			concrete, ok := c.(*platformContainer)
+			if !ok {
+				return fmt.Errorf("expected the platform container, got %T", c)
+			}
+			return mod.Register(concrete)
+		},
+		Start: func(context.Context) error {
+			started = true
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The platform's modules depend on each other by id, so the dependency has to be in
+	// the set as well; it is adapted the same way.
+	logModule, err := plugin.From(plugin.Spec{
+		ID:       "log",
+		Register: func(plugin.Container) error { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assembly, err := newSet(t, logModule, adapted).Select("iam")
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := assembly.Manifest()
+	if len(manifest) != 2 || manifest[0].ID != "log" || manifest[1].ID != "iam" || manifest[1].Version != "0.4.0" {
+		t.Fatalf("manifest = %+v", manifest)
+	}
+
+	container := &platformContainer{values: map[string]any{}}
+	if err := assembly.Start(context.Background(), container); err != nil {
+		t.Fatal(err)
+	}
+	if registered, ok := container.Get("iam.registered"); !ok || registered != true {
+		t.Fatalf("the module's own Register did not run: %+v", container.values)
+	}
+	if !started {
+		t.Fatal("the forwarded start hook did not run")
 	}
 }
