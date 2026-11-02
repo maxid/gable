@@ -78,13 +78,15 @@ func main() {
 
 ## Managing capabilities
 
-Capabilities are chosen by name rather than registered one by one:
+Capability selection lives in [`gplugin`](https://github.com/maxid/gplugin), shared with the
+protocol libraries. It takes the container type as a parameter, so `gable.Container` is just
+one of its uses:
 
 ```go
-set := plugin.NewSet()
-set.Add(plugin.Static("log", "1.0.0", logCapability))
-set.Add(plugin.Static("cache", "1.0.0", cacheCapability))   // DependsOn: log
-set.Add(plugin.Static("web", "1.0.0", webCapability))       // DependsOn: cache
+set := gplugin.NewSet[*Container]()
+set.Add(gplugin.Static("log", "1.0.0", logCapability))
+set.Add(gplugin.Static("cache", "1.0.0", cacheCapability))   // DependsOn: log
+set.Add(gplugin.Static("web", "1.0.0", webCapability))       // DependsOn: cache
 
 assembly, err := set.Select("web")        // -> log, cache, web (dependency order)
 err = assembly.Start(ctx, container)      // register + start; a failure rolls back
@@ -106,11 +108,12 @@ A module that already has its own shape — takes its own container type, or car
 lifecycle interface — joins without being rewritten, by describing it with closures:
 
 ```go
-module, err := plugin.From(plugin.Spec{
+set := gplugin.NewSet[*platform.Container]()
+module, err := gplugin.From(gplugin.Spec[*platform.Container]{
 	ID:        "cache",
 	Version:   "1.0.0",
 	DependsOn: []string{"log"},
-	Register:  func(c plugin.Container) error { return cache.Register(c.(*platform.Container)) },
+	Register:  cache.Register,
 	Start:     cache.Start,
 	Stop:      cache.Stop,
 })
@@ -119,6 +122,9 @@ set.Add(module)
 
 Everything the manifest shows comes from the `Spec` — nothing is inferred — and a spec
 without hooks stays wiring-only, so it never appears as started.
+
+A module that declared a lifecycle satisfies `gable.Module` as-is — the method sets are
+identical — so an assembly can also be registered on the application directly.
 
 ## Conversations with tools
 
@@ -164,7 +170,6 @@ tables — altering one is a data-loss decision that belongs to explicit migrati
 | `tenant` | single/saas resolution, context, host login rules, impersonation |
 | `orm` | sqlx-backed repositories, tenant guard, migrations, gcosid keys |
 | `rpc` | typed Client with local and HTTP/JSON bindings, shared-key auth, pluggable resolver; `rpc/nacos` resolves through the registry |
-| `plugin` | capability set: select by id, resolve dependencies, deterministic order, version manifest, optional lifecycle |
 | `mcp` | exposes operations as MCP tools over Streamable HTTP, with a shared-key transport check |
 | `ai` | tool-calling conversation loop over `gai`, with bounded rounds and bounded history |
 | `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply, file/database store |

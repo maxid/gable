@@ -342,8 +342,6 @@ github.com/maxid/gcosid v0.0.0-20261031112445-cbc7c57c79f7 h1:3AHSZh7TRDwa0QlqH6
 github.com/maxid/gcosid v0.0.0-20261031112445-cbc7c57c79f7/go.mod h1:qc4RHNHJ/o8HMaYEudQLDLHsKpnW1+SyPD81Am0qq0c=
 github.com/maxid/glogs v0.0.0-20261029144859-382e4fa15661 h1:kK3WDg+bS0MffBVQFqmUDBAHE/vwbqsimMlcu+XyPdM=
 github.com/maxid/glogs v0.0.0-20261029144859-382e4fa15661/go.mod h1:tfffGhtAHnR2lbO58Zfr/W9VE/hZkbpPfuRX6QAgOUY=
-github.com/maxid/gmcp v0.0.0-20261031135746-ee92dfdfe8c1 h1:9nEBQtD2fS2+TpNdbbdaHwxV6xNYgCnfxfIyXsHJ+lo=
-github.com/maxid/gmcp v0.0.0-20261031135746-ee92dfdfe8c1/go.mod h1:qwdlhEvbwFGokNl0TwH5XYJ2NaBR3xmdpNsQVAxzxfY=
 github.com/maxid/gmcp v0.0.0-20261101085736-b8600f4f82b8 h1:txSsmx8BYmLI4xXL/9UefTjQ/ul7TTgtCizRMfXQ5pA=
 github.com/maxid/gmcp v0.0.0-20261101085736-b8600f4f82b8/go.mod h1:qwdlhEvbwFGokNl0TwH5XYJ2NaBR3xmdpNsQVAxzxfY=
 github.com/maxid/gns v0.0.0-20261031175400-9ad9adafc373 h1:qY+CgTjBRa/W6MXUIBXnVkyMFwLBf7CwqfUMvZQWBbk=

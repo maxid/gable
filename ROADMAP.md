@@ -1,7 +1,7 @@
 # Roadmap
 
 - [x] Explicit container and module lifecycle
-- [x] Capability plugins: `plugin.Set` selection, manifests, optional lifecycle
+- [x] Capability plugins: `gplugin.Set` selection, manifests, optional lifecycle (moved to [`gplugin`](https://github.com/maxid/gplugin))
 - [x] Typed configuration (YAML + environment)
 - [x] `glogs` logger
 - [x] Stable error codes

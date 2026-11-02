@@ -74,12 +74,16 @@ func main() {
 | `web` | Gin MVC、包络、绑定/校验、OpenAPI 与 Swagger UI |
 | `tenant` | single/saas 解析、上下文、登录 Host 规则、代入 |
 | `orm` | sqlx Repository、租户守卫、迁移、gcosid 主键 |
-| `plugin` | 能力集合：按 id 选择、解析依赖、确定性顺序、版本清单、可选生命周期；`plugin.From` 适配自带容器或生命周期的模块 |
 | `dsl` | gable/v1 资源、lint、DDL、低码 IR、apply、文件/数据库存储 |
 | `auth` | 密码/JWT/opaque token、refresh 轮换、passport 端点、OAuth2 authorize/token |
 | `cache` | 继承应用 namespace 的 gcache 构造器 |
 | `namespace` | gcache 驱动的 `gns.Store` 实现（内存或 Redis） |
 | `auth/oauthclient` | 社交登录的 authorization-code + PKCE 客户端 |
+
+能力选择（按 id 选、解析依赖、确定性顺序、版本清单、可选生命周期）不在本库：它由
+[`gplugin`](https://github.com/maxid/gplugin) 提供，容器类型作为参数传入，`gable.Container`
+只是其中一种用法。声明了生命周期的模块的方法集与 `gable.Module` 完全一致，因此装配结果可以直接
+注册到应用上。
 
 ## 五行接入 HTTP
 
