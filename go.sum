@@ -346,6 +346,8 @@ github.com/maxid/gmcp v0.0.0-20261101085736-b8600f4f82b8 h1:txSsmx8BYmLI4xXL/9Ue
 github.com/maxid/gmcp v0.0.0-20261101085736-b8600f4f82b8/go.mod h1:qwdlhEvbwFGokNl0TwH5XYJ2NaBR3xmdpNsQVAxzxfY=
 github.com/maxid/gns v0.0.0-20261031175400-9ad9adafc373 h1:qY+CgTjBRa/W6MXUIBXnVkyMFwLBf7CwqfUMvZQWBbk=
 github.com/maxid/gns v0.0.0-20261031175400-9ad9adafc373/go.mod h1:dKx9prsgndaFJOhz1w0TUsRvoOXU2za/tCcTY+a4bNc=
+github.com/maxid/gplugin v0.0.0-20261102034223-09f50dbe8e66 h1:e9zsH99GPYer7da4Zgr50/J5EiiP0E3zXD4bkJBGBA4=
+github.com/maxid/gplugin v0.0.0-20261102034223-09f50dbe8e66/go.mod h1:H5rDo2Osroq3uEXX/NkVi/7N8pXXA9irYcWjjAsR9TM=
 github.com/mdelapenya/tlscert v0.2.0 h1:7H81W6Z/4weDvZBNOfQte5GpIMo0lGYEeWbkGp5LJHI=
 github.com/mdelapenya/tlscert v0.2.0/go.mod h1:O4njj3ELLnJjGdkN7M/vIVCpZ+Cf0L6muqOG4tLSl8o=
 github.com/moby/docker-image-spec v1.3.1 h1:jMKff3w6PgbfSa69GfNg+zN/XLhfXJGnEx3Nl2EsFP0=

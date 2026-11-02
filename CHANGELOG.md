@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Assembly delegates to `gplugin`: `App.Register` adds the module to a
+  `gplugin.Set[*Container]` and `App.Start` lets the assembly resolve the closure,
+  order it deterministically and roll back a failed start. The 90-line
+  `orderModules` and the App's own started-module bookkeeping are gone; module
+  signatures are unchanged (`gable.Module` is `gplugin.Module[*Container]` plus the
+  optional lifecycle).
+
 - Initial scaffold: `App`, `Container`, module lifecycle, typed configuration,
   `glogs` logging and stable error codes.
 - `web`: Gin-backed MVC, six-field envelope, binding/validation, request ids,

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/maxid/glogs"
+	"github.com/maxid/gplugin"
 
 	"github.com/maxid/gable/config"
 	gablelog "github.com/maxid/gable/log"
@@ -30,9 +31,11 @@ type App struct {
 	logger    *glogs.Logger
 	ownsLog   bool
 
-	modules []Module
-	started []Module
-	running bool
+	// set holds the capabilities this binary declared. Assembly is the ordered,
+	// started subset, nil before Start and after Stop.
+	set      *gplugin.Set[*Container]
+	assembly *gplugin.Assembly[*Container]
+	running  bool
 }
 
 // New returns an application with development defaults.
@@ -40,6 +43,7 @@ func New(opts ...Option) *App {
 	app := &App{
 		cfg:       config.Default(),
 		container: NewContainer(),
+		set:       gplugin.NewSet[*Container](),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -74,12 +78,9 @@ func (a *App) Register(module Module) error {
 	if module == nil {
 		return errors.New("gable: nil module")
 	}
-	for _, existing := range a.modules {
-		if existing.ID() == module.ID() {
-			return fmt.Errorf("gable: duplicate module %q", module.ID())
-		}
+	if err := a.set.Add(module); err != nil {
+		return fmt.Errorf("gable: %w", err)
 	}
-	a.modules = append(a.modules, module)
 	return nil
 }
 
@@ -132,27 +133,21 @@ func (a *App) Start(ctx context.Context) error {
 	a.container.Set("gable.logger", a.logger)
 	a.container.Set("gable.namespace", a.namespace)
 
-	ordered, err := orderModules(a.modules)
-	if err != nil {
-		a.closeLogger()
-		return err
-	}
-
-	for _, module := range ordered {
-		if err := module.Register(a.container); err != nil {
+	// Ordering, registration and lifecycle are gplugin's assembly layer: it resolves
+	// the dependency closure, sorts it deterministically and rolls back the modules it
+	// already started when one fails. gable only owns the container, the configuration
+	// and the logger.
+	if ids := a.set.IDs(); len(ids) > 0 {
+		assembly, err := a.set.Select(ids...)
+		if err != nil {
 			a.closeLogger()
-			return fmt.Errorf("gable: module %s register: %w", module.ID(), err)
+			return fmt.Errorf("gable: %w", err)
 		}
-	}
-
-	a.started = nil
-	for _, module := range ordered {
-		if err := module.Start(ctx); err != nil {
-			_ = a.stopStarted(ctx)
+		if err := assembly.Start(ctx, a.container); err != nil {
 			a.closeLogger()
-			return fmt.Errorf("gable: module %s start: %w", module.ID(), err)
+			return fmt.Errorf("gable: %w", err)
 		}
-		a.started = append(a.started, module)
+		a.assembly = assembly
 	}
 
 	a.running = true
@@ -184,22 +179,16 @@ func (a *App) Stop(ctx context.Context) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	err := a.stopStarted(ctx)
+	var err error
+	if a.assembly != nil {
+		if stopErr := a.assembly.Stop(ctx); stopErr != nil {
+			err = fmt.Errorf("gable: %w", stopErr)
+		}
+		a.assembly = nil
+	}
 	a.running = false
 	a.closeLogger()
 	return err
-}
-
-func (a *App) stopStarted(ctx context.Context) error {
-	var errs []error
-	for i := len(a.started) - 1; i >= 0; i-- {
-		module := a.started[i]
-		if err := module.Stop(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("gable: module %s stop: %w", module.ID(), err))
-		}
-	}
-	a.started = nil
-	return errors.Join(errs...)
 }
 
 func (a *App) closeLogger() {
