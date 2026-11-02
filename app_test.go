@@ -3,6 +3,7 @@ package gable
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -154,5 +155,41 @@ func TestContainerResolveRejectsWrongType(t *testing.T) {
 	}
 	if n, ok := Resolve[int](c, "n"); !ok || n != 1 {
 		t.Fatalf("Resolve = %v, %v", n, ok)
+	}
+}
+
+// TestAppManifestReportsStartOrder pins that the assembly's manifest is reachable
+// from the App: the ids in start order, with the versions and dependencies the
+// modules declared.
+func TestAppManifestReportsStartOrder(t *testing.T) {
+	app := New()
+	var events []string
+	for _, id := range []string{"web", "log"} {
+		module := &testModule{id: id, events: &events}
+		if id == "web" {
+			module.deps = []string{"log"}
+		}
+		if err := app.Register(module); err != nil {
+			t.Fatalf("register %s: %v", id, err)
+		}
+	}
+	if got := app.Manifest(); got != nil {
+		t.Fatalf("manifest before Start = %v, want none", got)
+	}
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer func() { _ = app.Stop(context.Background()) }()
+
+	manifest := app.Manifest()
+	got := make([]string, 0, len(manifest))
+	for _, entry := range manifest {
+		got = append(got, entry.ID)
+	}
+	if want := []string{"log", "web"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("manifest order = %v, want %v", got, want)
+	}
+	if manifest[1].DependsOn[0] != "log" {
+		t.Fatalf("manifest dependencies = %v", manifest[1].DependsOn)
 	}
 }

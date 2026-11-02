@@ -88,6 +88,18 @@ func (a *App) Register(module Module) error {
 // Start.
 func (a *App) Namespace() config.Namespace { return a.namespace }
 
+// Manifest reports what Start wired, in start order: the capability id, its version
+// and the ids it depends on. It is empty before Start and after Stop, which is what
+// makes "print what this process enabled" a one-liner.
+func (a *App) Manifest() []gplugin.Entry {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.assembly == nil {
+		return nil
+	}
+	return a.assembly.Manifest()
+}
+
 // Container returns the application container.
 func (a *App) Container() *Container { return a.container }
 
