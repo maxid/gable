@@ -128,6 +128,45 @@ users, err := repo.Query().Where(orm.Eq("name", "alice")).All(ctx)
 `db.AutoMigrate(model)` 只创建缺失表。MySQL DSN 需带 `parseTime=true`，否则 `DATETIME`/`TIMESTAMP`
 无法扫描进 `time.Time`。
 
+逻辑删除有两种写法，任选其一，守卫自动生效：
+
+```go
+type Doc struct {
+    ID        int64      `gable:"pk"`
+    Title     string     `gable:"size=128"`
+    DeletedAt *time.Time `gable:"soft_delete"` // 一旦非 NULL 即隐藏
+}
+
+type Flag struct { // 或者用标志位
+    ID     int64 `gable:"pk"`
+    Name   string
+    Retain bool `gable:"retain"` // 一旦为 true 即隐藏
+}
+```
+
+声明的列会出现在每一次 scoped 查询/更新/删除里（`deleted_at IS NULL` / `retain = false`），
+调用方无需记着加。`Delete` 写标记，`Restore` 清除，`Purge` 是唯一真正删行的入口；
+`Unscoped()` 解除守卫；`Update` 不碰标记列，陈旧的实体无法把行“复活”。
+
+关系在实体上声明，只在显式请求时加载：
+
+```go
+type Order struct {
+    ID     int64  `gable:"pk"`
+    UserID int64
+    User   *User  `gable:"belongs_to=sys_user,foreign_key=user_id"`
+    Items  []Item `gable:"has_many=order_item,foreign_key=order_id"`
+}
+
+orders, err := orders.Query().
+    Preload("User", users).
+    Preload("Items", items).
+    All(ctx)
+```
+
+关系是元数据不是列。`Preload` 对**整个结果集**每个关系只查一次，绝不按行查；
+被加载的关联读取沿用同一套租户与逻辑删除守卫。没有懒加载，handler 不会意外打出 N+1。
+
 Schema 迁移在独立库 [`gmigrate`](https://github.com/maxid/gmigrate)；gable 只保留开发用的 `AutoMigrate`。
 
 ## DSL

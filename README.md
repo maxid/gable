@@ -223,6 +223,49 @@ mismatched tenant fails closed. `repo.Unscoped()` is the explicit escape hatch.
 `db.AutoMigrate(model)` creates missing tables only. MySQL DSNs should set
 `parseTime=true` so `DATETIME`/`TIMESTAMP` columns scan into `time.Time`.
 
+A row can be hidden instead of removed, in the two spellings the platform uses:
+
+```go
+type Doc struct {
+    ID        int64      `gable:"pk"`
+    Title     string     `gable:"size=128"`
+    DeletedAt *time.Time `gable:"soft_delete"` // hidden once it is set
+}
+
+type Flag struct { // or with a flag
+    ID     int64 `gable:"pk"`
+    Name   string
+    Retain bool `gable:"retain"` // hidden once it is true
+}
+```
+
+Declaring either one adds `deleted_at IS NULL` / `retain = false` to every
+scoped read, update and delete, so no caller has to remember it. `Delete`
+writes the marker, `Restore` clears it, and `Purge` is the only call that
+removes the row for good. `Unscoped()` lifts the guard; `Update` never touches
+the marker, so a stale entity cannot resurrect a row.
+
+Relations are declared on the entity and loaded only when asked for:
+
+```go
+type Order struct {
+    ID     int64  `gable:"pk"`
+    UserID int64
+    User   *User  `gable:"belongs_to=sys_user,foreign_key=user_id"`
+    Items  []Item `gable:"has_many=order_item,foreign_key=order_id"`
+}
+
+orders, err := orders.Query().
+    Preload("User", users).
+    Preload("Items", items).
+    All(ctx)
+```
+
+A relation is metadata, not a column. `Preload` costs one query per relation
+for the whole result set — never one per row — and the related read keeps the
+same tenant and delete-marker guards as the query that asked for it. There is
+no lazy loading, so a handler cannot accidentally issue a query per row.
+
 
 Schema migrations live in the independent [`gmigrate`](https://github.com/maxid/gmigrate) library; gable only keeps `AutoMigrate` for development.
 

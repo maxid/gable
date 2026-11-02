@@ -29,6 +29,11 @@ All notable changes to this project will be documented in this file.
   documents that changed, in one transaction, keeping every revision; the
   revision number is assigned by the database. `gable dsl push` moves a
   directory into the store, `gable dsl serve --load db` serves it back.
+- ORM relations and delete markers: `belongs_to`/`has_many` fields are loaded by an
+  explicit `Preload` (one query per relation for the whole result set, keeping the
+  parent's tenant and delete guards), and a `soft_delete` timestamp or `retain` flag
+  adds its predicate to every scoped read, write and delete. `Delete` writes the marker,
+  `Restore` clears it, `Purge` removes the row.
 - Plugins: `plugin.From(plugin.Spec{...})` adapts a module that keeps its own
   container type or lifecycle, without renaming it; a spec without hooks stays
   wiring-only, so it is never counted as started.

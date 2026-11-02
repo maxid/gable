@@ -18,6 +18,7 @@
 - DSL 首刀：`gable/v1` Model/Table/Form/Page、lint、Model DDL、`lcdp.ir/v1` preview、幂等 file apply 与 `gable dsl` 命令。
 - DSL runtime：动态 `/dsl/data/<model>` CRUD、租户守卫、vamis 分页别名与 `gable dsl serve`；stdio MCP 工具（`gable dsl mcp`）。
 - DSL 数据库 store：`dsl.NewDBStore` 建 `gable_dsl_resource` 与 `gable_dsl_revision` 两张表，可从行里加载回集合；保存只写发生变化的文档，在一个事务内完成，每次写入进 revision 表，revision 号由数据库分配。`gable dsl push` 把目录推到 store，`gable dsl serve --load db` 从库里提供服务。
+- ORM 关系与删除标记：`belongs_to`/`has_many` 字段通过显式 `Preload` 加载（整个结果集每个关系一次查询，并沿用父查询的租户与删除守卫）；`soft_delete` 时间戳或 `retain` 标志会把谓词加到每一次 scoped 读写删上。`Delete` 写标记、`Restore` 清除、`Purge` 真正删行。
 - 插件：`plugin.From(plugin.Spec{...})` 适配保留自有容器类型或生命周期的模块，不必改名；没有钩子的 spec 保持纯接线，不会被记作已启动。
 - Namespace：gable 保留 cache/Flyway/CosID/cluster 前缀配置；`gns` 只负责 namespace 值、context 与 Store SPI；`namespace` 用 gcache 实现 Store；gcache/gbus 不再依赖 gns。
 - Auth：密码登录、JWT/opaque access token、opaque refresh 轮换、bearer 中间件、passport 兼容 Login/refresh/logout、OAuth2 token/introspection/revocation、authorization-code + PKCE server（consent/metadata）、OIDC id_token/JWKS/userinfo、社交回调 client。

@@ -12,7 +12,8 @@
 - [x] Tenant：single/saas、Host 登录规则、fail-closed 作用域、代入
 - [x] ORM 核心：模型、查询构造器、CRUD、租户守卫、gcosid 主键、AutoMigrate（MySQL/PostgreSQL）
 - [x] Migrate：Flyway 兼容历史、CRC32 校验和、baseline/repair（MySQL/PostgreSQL）
-- [ ] ORM：relations/Preload、软删/保留、ClickHouse/DM/TDengine 方言
+- [x] ORM：关系（`belongs_to`/`has_many` + `Preload`）、软删/保留标志守卫与 `Restore`/`Purge`
+- [ ] ORM：ClickHouse/达梦/TDengine 方言
 - [x] Pilot：租户任务看板（single/saas、内存/ORM、OpenAPI）
 - [x] DSL：Model/Table/Form/Page、lint、DDL/IR preview、幂等 apply（file store）
 - [x] DSL：运行时 data API（/dsl/data/<model>），租户守卫与 vamis 参数
