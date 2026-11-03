@@ -7,6 +7,7 @@
 ## [Unreleased]
 
 - `migrate`：Flyway 兼容的 `flyway_schema_history` store、按行 CRC32 校验和、版本化 SQL 加载、baseline/repair 与 MySQL/PostgreSQL 锁。
+- 试点：`examples/app` 把 `users`、`roles`、`admin` 三个**保留平台契约**（`Register(*Container)`、自带生命周期）的模块，用接线处 15 行适配器装进 gable 应用。`/status` 暴露装配清单；`pilot_test.go` 断言四条接入判据：容器唯一、清单等价、回滚语义一致、模块里没有 gable 类型。
 - CLI：`gable gen dsl` 把带 gable tag 的 Go 结构体生成 `Model` 资源（标志、size、列名与表名），关系与无法表达的字段会被省略**并在 stderr 给出警告**，不会静默丢弃；相同输入重复运行不改动文件。
 - OpenAPI：`Route.Extension(name, value)` 给 operation 挂 vendor extension（`x-...`），平铺进 operation 对象；名字缺少前缀会在接线期 panic。路由可用 OpenAPI 的 `{id}` 写法，注册时翻译成 Gin 的拼法。
 - 配置热更新：`config.Watch` 先加载校验、再监听目录（编辑器与 ConfigMap 都是替换文件），一次保存的多写事件合并为一次重载，新文件不合法时保留上一份可用配置，订阅者拒绝则不做切换。

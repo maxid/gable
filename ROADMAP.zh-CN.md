@@ -17,6 +17,7 @@
 - [x] ORM：`WithTx` 事务，仓储可绑定到事务
 - [ ] ORM：ClickHouse/达梦/TDengine 方言
 - [x] Pilot：租户任务看板（single/saas、内存/ORM、OpenAPI）
+- [x] 试点：平台形状模块装入 gable 装配（`examples/app`），四条接入判据都有断言
 - [x] DSL：Model/Table/Form/Page、lint、DDL/IR preview、幂等 apply（file store）
 - [x] DSL：运行时 data API（/dsl/data/<model>），租户守卫与 vamis 参数
 - [x] DSL：MCP 工具（schema/lint/preview/apply）

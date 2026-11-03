@@ -11,3 +11,5 @@ logs/
 *.a
 *.prof
 coverage.*
+# `go build ./examples/app` drops the binary in the module root, named after the package
+/app

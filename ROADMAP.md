@@ -15,6 +15,7 @@
 - [x] ORM: `WithTx` transactions with repositories bound to the transaction
 - [ ] ORM: ClickHouse/DM/TDengine dialects
 - [x] Pilot: tenant-scoped task board (single/saas, memory/ORM, OpenAPI)
+- [x] Pilot: platform-shaped modules in a gable assembly (`examples/app`), with the four adoption criteria asserted
 - [x] DSL: Model/Table/Form/Page, lint, DDL/IR preview, idempotent apply (file store)
 - [x] DSL: runtime data API (/dsl/data/<model>) with tenant guard and vamis params
 - [x] DSL: MCP tools (schema/lint/preview/apply)

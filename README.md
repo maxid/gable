@@ -644,6 +644,10 @@ replica needs shared implementations of both.
 - `examples/tenant` — SaaS mode: host login, principal tenant, impersonation.
 - `examples/pilot` — tenant-scoped task board: full CRUD, memory/ORM stores,
   single/saas modes, OpenAPI; runnable without a database.
+- `examples/app` — the plugin pilot: `users`, `roles` and `admin` modules written against the
+  platform's own module contract (`Register(*Container)`, its own lifecycle), joined to a
+  gable application by a fifteen-line adapter in the wiring. `/status` prints the assembly
+  manifest; `pilot_test.go` asserts the four adoption criteria.
 - `examples/dsl` — model/table/form/page resources with lint and IR preview.
 - `examples/auth` — password login, protected route, OAuth2 token/introspection,
   JWT and opaque modes.

@@ -1,0 +1,16 @@
+app:
+  name: admin-pilot
+  env: development
+
+log:
+  dir: logs
+  level: info
+  format: text
+
+http:
+  addr: ":8085"
+
+tenant:
+  mode: single
+  root_id: 1
+  root_code: management

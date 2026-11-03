@@ -11,6 +11,11 @@ All notable changes to this project will be documented in this file.
   signatures are unchanged (`gable.Module` is `gplugin.Module[*Container]` plus the
   optional lifecycle).
 
+- Pilot: `examples/app` wires `users`, `roles` and `admin` modules that keep the platform's
+  own contract (`Register(*Container)`, own lifecycle) into a gable application through a
+  fifteen-line adapter in the wiring. `/status` exposes the assembly manifest, and
+  `pilot_test.go` asserts the four adoption criteria: one container, an equivalent manifest,
+  the platform's rollback semantics, and no gable type in the modules.
 - CLI: `gable gen dsl` turns gable-tagged Go structs into `Model` resources (flags,
   sizes, column and table names), omitting relations and any field it cannot express —
   with a warning on stderr rather than silently. Writing twice leaves identical files
