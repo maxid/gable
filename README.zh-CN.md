@@ -77,6 +77,7 @@ func main() {
 | `dsl` | gable/v1 资源、lint、DDL、低码 IR、apply、文件/数据库存储、diff/history/restore |
 | `health` | 存活/就绪探针，支持关键与可选依赖 |
 | `metrics` | Prometheus 文本格式的计数器、gauge 与直方图 |
+| `cli` | `new`、`dev`、`dsl`、`migrate`、`inspect`、`version` |
 | `auth` | 密码/JWT/opaque token、refresh 轮换、passport 端点、OAuth2 authorize/token |
 | `cache` | 继承应用 namespace 的 gcache 构造器 |
 | `namespace` | gcache 驱动的 `gns.Store` 实现（内存或 Redis） |

@@ -175,6 +175,7 @@ tables — altering one is a data-loss decision that belongs to explicit migrati
 | `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply, file/database store, diff/history/restore |
 | `health` | liveness vs readiness, critical and optional probes |
 | `metrics` | Prometheus-text counters, gauges and histograms |
+| `cli` | `new`, `dev`, `dsl`, `migrate`, `inspect`, `version` |
 | `auth` | password/JWT/opaque tokens, refresh rotation, passport endpoints, OAuth2 authorize/token |
 | `cache` | gcache constructor that inherits the application namespace |
 | `namespace` | gcache-backed `gns.Store` implementation (memory or Redis) |
