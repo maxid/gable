@@ -309,6 +309,30 @@ gable dsl history Model/task --dsn '...'
 gable dsl restore Model/task --revision 3 --dsn '...'
 ```
 
+### 不重启地重载
+
+```bash
+gable dsl serve --load db --reload 30s --dsn '...'
+kill -HUP <pid>            # 立即重载，不必等轮询
+```
+
+重载是**原子替换**资源快照：一个请求要么看到完整旧集，要么看到完整新集。库里新增的 Model 在下一个周期就可访问
+（建表方式与启动时一致），从库里移除的 Model 随之不可访问——这就是「由资源驱动的数据 API」里 unload 的含义。
+不通过 lint 的集合会被**拒绝**，运行中的快照继续服务：日志会指出坏资源，一次错误编辑不会变成一次故障。
+
+资源还可以声明「能对它做什么」：
+
+```yaml
+metadata:
+  name: task
+  readonly: true          # 已存的 readonly 资源：push 与 restore 都拒绝覆盖
+  status: deprecated      # 仍会加载与提供服务；"active" 与留空等价
+  tags: [admin, task]     # 供 UI 分组与筛选列表
+  sort: 10                # 同类资源排序，数字小的在前
+```
+
+`readonly` 是对**库中已存文档**判定的，所以文件无法先给自己去掉标记再覆盖库——这条护栏正是让手写资源能与生成资源共存的东西。
+
 `diff` 比较的正是 `push` 会写的那份规范化文档，所以 dry-run 与真实写入不可能得出不同结论；
 只存在于库里的资源报 `removed`（不会隐式删除）。`restore` 把旧文档写成**下一个** revision 而不是改写历史，
 若该版本已是当前内容则什么都不做。

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/maxid/gable/orm"
 )
 
@@ -153,7 +155,44 @@ func (s *DBStore) Save(ctx context.Context, set *Set) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if issues := readonlyConflicts(pending, stored); len(issues) > 0 {
+		return nil, issues
+	}
 	return s.apply(ctx, pending)
+}
+
+// readonlyConflicts refuses to overwrite a stored resource that declared itself readonly.
+//
+// Creating such a resource is allowed — that is how the flag gets there — but changing it
+// afterwards is not, which is what makes it usable as a guard rail for hand-written resources
+// living next to generated ones. The check is on the *stored* document: a file cannot lift its
+// own readonly flag and overwrite the database.
+func readonlyConflicts(pending []pending, stored map[string]string) Issues {
+	var issues Issues
+	for _, item := range pending {
+		key := resourceKey(item.Kind, item.Name)
+		current, ok := stored[key]
+		if !ok {
+			continue
+		}
+		if storedReadonly(current) {
+			issues = append(issues, Issue{
+				Resource: key,
+				Message:  "metadata.readonly is set on the stored resource; change it there first",
+			})
+		}
+	}
+	return issues
+}
+
+// storedReadonly reports whether a stored document declared metadata.readonly. A document that
+// no longer parses cannot protect itself, and Load reports that separately.
+func storedReadonly(document string) bool {
+	var head header
+	if err := yaml.Unmarshal([]byte(document), &head); err != nil {
+		return false
+	}
+	return head.Metadata.Readonly
 }
 
 // apply writes the pending documents in one transaction. Save and Restore share it, so a
@@ -466,8 +505,14 @@ func (s *DBStore) Restore(ctx context.Context, kind Kind, name string, revision 
 	if err != nil {
 		return "", err
 	}
-	if current, ok := stored[resourceKey(kind, name)]; ok && current == document {
-		return "", nil
+	if current, ok := stored[resourceKey(kind, name)]; ok {
+		if current == document {
+			return "", nil
+		}
+		if storedReadonly(current) {
+			return "", fmt.Errorf("dsl: %s: metadata.readonly is set on the stored resource; restore would overwrite it",
+				resourceKey(kind, name))
+		}
 	}
 
 	written, err := s.apply(ctx, []pending{{

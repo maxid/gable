@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/maxid/gcosid"
@@ -18,9 +19,13 @@ import (
 )
 
 // Runtime executes CRUD for DSL models against a real database.
+//
+// The resource set is a snapshot the runtime swaps on Reload, never a value it mutates: a
+// request either sees the whole old set or the whole new one, so a reload cannot serve a model
+// whose table metadata is half-replaced.
 type Runtime struct {
 	db         *orm.DB
-	set        *Set
+	set        atomic.Pointer[Set]
 	ids        map[string]gcosid.Generator
 	defaultIDs gcosid.Generator
 }
@@ -54,7 +59,8 @@ func NewRuntime(db *orm.DB, set *Set, opts ...RuntimeOption) (*Runtime, error) {
 	if issues := set.Lint(); len(issues) > 0 {
 		return nil, issues
 	}
-	runtime := &Runtime{db: db, set: set, ids: map[string]gcosid.Generator{}}
+	runtime := &Runtime{db: db, ids: map[string]gcosid.Generator{}}
+	runtime.set.Store(set)
 	for _, opt := range opts {
 		opt(runtime)
 	}
@@ -62,12 +68,40 @@ func NewRuntime(db *orm.DB, set *Set, opts ...RuntimeOption) (*Runtime, error) {
 }
 
 // Set returns the loaded resources.
-func (r *Runtime) Set() *Set { return r.set }
+func (r *Runtime) Set() *Set { return r.current() }
+
+// current returns the active snapshot. A request takes it once and uses it throughout, so a
+// reload in the middle of a request cannot change the model it is querying.
+func (r *Runtime) current() *Set {
+	snapshot := r.set.Load()
+	if snapshot == nil {
+		return NewSet()
+	}
+	return snapshot
+}
+
+// Reload replaces the resources the data API serves.
+//
+// The new set is linted first: a set that does not lint is refused and the running snapshot
+// keeps serving, because accepting a broken definition would take a working API down. A
+// resource removed from the new set stops being reachable on the next request — that is what
+// "unload" means here.
+func (r *Runtime) Reload(set *Set) error {
+	if set == nil {
+		return fmt.Errorf("dsl: nil set")
+	}
+	if issues := set.Lint(); len(issues) > 0 {
+		return issues
+	}
+	r.set.Store(set)
+	return nil
+}
 
 // Migrate creates missing tables for every model.
 func (r *Runtime) Migrate(context.Context) error {
-	for _, name := range sortedKeys(r.set.Models) {
-		doc := r.set.Models[name]
+	current := r.current()
+	for _, name := range sortedKeys(current.Models) {
+		doc := current.Models[name]
 		model, err := doc.ORMModel()
 		if err != nil {
 			return err
@@ -371,7 +405,7 @@ func (r *Runtime) Delete(ctx context.Context, model string, id int64) error {
 }
 
 func (r *Runtime) model(name string) (*ModelDoc, error) {
-	doc, ok := r.set.Models[name]
+	doc, ok := r.current().Models[name]
 	if !ok {
 		return nil, notFound("unknown model " + name)
 	}

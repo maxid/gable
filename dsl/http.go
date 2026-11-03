@@ -41,7 +41,7 @@ func (r *Runtime) listHTTP(ctx *web.Context) error {
 	// Pagination and the sort whitelist come from the framework helper: the whitelist is
 	// the model's own columns, so a request cannot order by a column the model does not
 	// have and get a silent 200 with the wrong order.
-	model := r.set.Models[ctx.Param("model")]
+	model := r.current().Models[ctx.Param("model")]
 	if model == nil {
 		return invalid("unknown model " + ctx.Param("model"))
 	}

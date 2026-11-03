@@ -425,6 +425,35 @@ gable dsl history Model/task --dsn '...'
 gable dsl restore Model/task --revision 3 --dsn '...'
 ```
 
+### Reloading without a restart
+
+```bash
+gable dsl serve --load db --reload 30s --dsn '...'
+kill -HUP <pid>            # reload now, whatever the interval is
+```
+
+A reload swaps the resource snapshot atomically, so a request sees either the whole old set
+or the whole new one; a model added to the database becomes reachable on the next tick (its
+table is created the same way startup does it), and a model removed from it stops being
+reachable — that is what unloading means for a data API driven by resources. A set that does
+not lint is **refused** and the running snapshot keeps serving: the log names the broken
+resource, and a bad edit does not become an outage.
+
+Resources can also say what may happen to them:
+
+```yaml
+metadata:
+  name: task
+  readonly: true          # push and restore refuse to overwrite a stored readonly resource
+  status: deprecated      # still loads and serves; "active" and empty mean the same
+  tags: [admin, task]     # for UI grouping and filtered listings
+  sort: 10                # order of the same kind; a smaller number comes first
+```
+
+`readonly` is enforced against the **stored** document, so a file cannot lift its own flag and
+overwrite the database — it is the guard rail that lets hand-written resources live next to
+generated ones.
+
 `diff` compares the same normalized documents `push` writes, so a dry run and the real
 write cannot disagree; resources that exist only in the database are reported as
 `removed` (nothing is deleted implicitly). `restore` writes the old document as the

@@ -71,6 +71,12 @@ All notable changes to this project will be documented in this file.
 - DSL runtime: dynamic `/dsl/data/<model>` CRUD with tenant guard, vamis
   pagination aliases and `gable dsl serve`; MCP tools over stdio
   (`gable dsl mcp`).
+- DSL runtime reload: `dsl.Runtime.Reload` swaps the resource snapshot atomically, so a
+  request sees one whole set; `gable dsl serve --reload 30s` polls and SIGHUP reloads on
+  demand, creating the tables of newly added models the way startup does. A set that does not
+  lint is refused and the running snapshot keeps serving. Metadata gains `readonly`
+  (push/restore refuse to overwrite a stored readonly resource), `status` (`active` /
+  `deprecated`), `tags` and `sort`.
 - DSL `Api` and `Mcp` kinds: an Api binds one action to a handler registered with
   `dsl.NewRegistry().API(name, fn)`, behind guards registered by name; an Mcp declares the
   metadata a model reads for a registered tool handler. A name that was never registered —

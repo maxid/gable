@@ -85,8 +85,18 @@ func envelopeIssues(expected Kind, apiVersion string, kind Kind, metadata Metada
 	if !resourceNameRE.MatchString(metadata.Name) {
 		issues = append(issues, Issue{Resource: resource, Message: "metadata.name must match ^[a-z][a-z0-9._-]*$"})
 	}
+	if !statuses[strings.ToLower(strings.TrimSpace(metadata.Status))] {
+		issues = append(issues, Issue{
+			Resource: resource,
+			Field:    "metadata.status",
+			Message:  fmt.Sprintf("unsupported status %q (want active or deprecated)", metadata.Status),
+		})
+	}
 	return issues
 }
+
+// statuses are the lifecycle values a resource may declare. Empty means active.
+var statuses = map[string]bool{"": true, "active": true, "deprecated": true}
 
 func lintModel(doc *ModelDoc) Issues {
 	resource := string(KindModel) + "/" + doc.Metadata.Name

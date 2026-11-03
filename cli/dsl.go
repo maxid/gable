@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/maxid/gcosid"
@@ -481,6 +482,7 @@ func newDSLServeCommand() *cobra.Command {
 		rootID    int64
 		rootCode  string
 		machine   int64
+		reload    time.Duration
 	)
 	cmd := &cobra.Command{
 		Use:   "serve",
@@ -531,10 +533,23 @@ func newDSLServeCommand() *cobra.Command {
 
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 			defer stop()
+
+			// A reload keeps the process and its listener: an operator changes the resources and
+			// the API follows, which is the whole point of storing them in a database. A broken
+			// set is reported and the running snapshot keeps serving.
+			if reload > 0 || load == "db" {
+				go watchDSLResources(ctx, cmd.ErrOrStderr(), runtime, reload, func(ctx context.Context) (*dsl.Set, error) {
+					return loadDSLSet(ctx, dir, load, db, table, revisions)
+				})
+			}
+
 			if err := server.Start(ctx, addr); err != nil {
 				return err
 			}
 			fmt.Fprintln(cmd.OutOrStdout(), "listening on", server.Addr())
+			if reload > 0 {
+				fmt.Fprintf(cmd.OutOrStdout(), "reloading every %s\n", reload)
+			}
 			<-ctx.Done()
 			shutdown, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -551,5 +566,55 @@ func newDSLServeCommand() *cobra.Command {
 	cmd.Flags().Int64Var(&rootID, "root-id", 1, "root tenant id")
 	cmd.Flags().StringVar(&rootCode, "root-code", "management", "root tenant code")
 	cmd.Flags().Int64Var(&machine, "machine-id", 1, "gcosid snowflake machine id")
+	cmd.Flags().DurationVar(&reload, "reload", 0, "poll interval for resource changes (e.g. 30s); SIGHUP always reloads")
 	return cmd
+}
+
+// watchDSLResources reloads the runtime on SIGHUP and, when an interval is set, on a timer.
+//
+// A failed load never replaces the snapshot: the log line says what broke, and the API keeps
+// answering from the set that last linted. That is the difference between a bad edit and an
+// outage.
+func watchDSLResources(ctx context.Context, log io.Writer, runtime *dsl.Runtime, interval time.Duration, load func(context.Context) (*dsl.Set, error)) {
+	reloadOnce := func(reason string) {
+		set, err := load(ctx)
+		if err != nil {
+			fmt.Fprintf(log, "dsl: reload (%s) failed, keeping the previous resources: %v\n", reason, err)
+			return
+		}
+		if err := runtime.Reload(set); err != nil {
+			fmt.Fprintf(log, "dsl: reload (%s) rejected, keeping the previous resources: %v\n", reason, err)
+			return
+		}
+		// The server migrates at startup, so a model added later needs its table too;
+		// creating it here keeps reload and restart equivalent, and a failure is reported
+		// without undoing the swap — the resource is still the right one to serve.
+		if err := runtime.Migrate(ctx); err != nil {
+			fmt.Fprintf(log, "dsl: reload (%s): model tables not created: %v\n", reason, err)
+		}
+		fmt.Fprintf(log, "dsl: reloaded (%s): %d models\n", reason, len(set.Models))
+	}
+
+	hangups := make(chan os.Signal, 1)
+	signal.Notify(hangups, syscall.SIGHUP)
+	defer signal.Stop(hangups)
+
+	var ticker *time.Ticker
+	var ticks <-chan time.Time
+	if interval > 0 {
+		ticker = time.NewTicker(interval)
+		defer ticker.Stop()
+		ticks = ticker.C
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-hangups:
+			reloadOnce("SIGHUP")
+		case <-ticks:
+			reloadOnce("interval")
+		}
+	}
 }
