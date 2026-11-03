@@ -145,6 +145,23 @@ func ginPath(path string) string {
 	return builder.String()
 }
 
+// Extension attaches a vendor extension to the operation, such as `x-springdoc-...` or a
+// gateway's own hint.
+//
+// The name must start with "x-", as OpenAPI requires; anything else panics at wiring time,
+// because a misspelled extension would either be dropped by every tool or — worse — be
+// rendered as a field of the operation schema, which a strict validator rejects.
+func (r *Route) Extension(name string, value any) *Route {
+	if !strings.HasPrefix(name, "x-") {
+		panic("web: vendor extension " + name + " must start with x-")
+	}
+	if r.extensions == nil {
+		r.extensions = map[string]any{}
+	}
+	r.extensions[name] = value
+	return r
+}
+
 // Route carries the documentation metadata for one endpoint.
 type Route struct {
 	server *Server
@@ -158,9 +175,10 @@ type Route struct {
 	group       string
 	status      int
 
-	request  any
-	response any
-	params   []oaParameter
+	request    any
+	response   any
+	params     []oaParameter
+	extensions map[string]any
 }
 
 // Doc sets the summary and optional description.

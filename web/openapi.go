@@ -44,6 +44,37 @@ type oaOperation struct {
 	Parameters  []oaParameter         `json:"parameters,omitempty"`
 	RequestBody *oaRequestBody        `json:"requestBody,omitempty"`
 	Responses   map[string]oaResponse `json:"responses"`
+	// Extensions are the route's x-... vendor extensions, merged into the operation
+	// document at build time.
+	Extensions map[string]any `json:"-"`
+}
+
+// MarshalJSON folds the vendor extensions into the operation object.
+//
+// A struct field cannot be "inline or absent" in encoding/json, and an operation with
+// `"extensions": {...}` instead of top-level `x-...` keys is exactly the mistake this type
+// exists to prevent, so the merge happens here.
+func (o *oaOperation) MarshalJSON() ([]byte, error) {
+	type alias oaOperation
+	if len(o.Extensions) == 0 {
+		return json.Marshal((*alias)(o))
+	}
+	raw, err := json.Marshal((*alias)(o))
+	if err != nil {
+		return nil, err
+	}
+	merged := map[string]json.RawMessage{}
+	if err := json.Unmarshal(raw, &merged); err != nil {
+		return nil, err
+	}
+	for name, value := range o.Extensions {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return nil, fmt.Errorf("web: extension %s: %w", name, err)
+		}
+		merged[name] = encoded
+	}
+	return json.Marshal(merged)
 }
 
 type oaParameter struct {
@@ -175,6 +206,7 @@ func (b *openAPIBuilder) operation(route *Route) *oaOperation {
 		Tags:        route.tags,
 		Parameters:  append(pathParameters(route.path), route.params...),
 		Responses:   make(map[string]oaResponse),
+		Extensions:  route.extensions,
 	}
 	if op.OperationID == "" {
 		op.OperationID = defaultOperationID(route.method, route.path)
