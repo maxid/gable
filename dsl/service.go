@@ -188,6 +188,16 @@ func Schema() map[string]any {
 			}},
 		},
 		"kinds": map[string]any{
+			"Api": map[string]any{
+				"required": []string{"spec.handler", "spec.path"},
+				"fields":   "handler, model, method (GET/POST/PUT/PATCH/DELETE), path (relative), guards, audit",
+				"rules":    []string{"handler names a registered Go handler", "guards name registered guards"},
+			},
+			"Mcp": map[string]any{
+				"required": []string{"spec.handler"},
+				"fields":   "handler, name, description, params (JSON Schema object), guards",
+				"rules":    []string{"handler names a registered Go handler", "params is an object schema"},
+			},
 			"Model": map[string]any{
 				"required": []string{"spec.fields"},
 				"fields":   "name, type, size, primary, tenant, required, unique, autoCreate, autoUpdate, generator, default, enum, label",
@@ -201,6 +211,7 @@ func Schema() map[string]any {
 			"exactly one primary field; primary must be int64",
 			"at most one tenant field; tenant must be int64",
 			"Table/Form reference an existing Model; Page references existing Table/Form",
+			"Api/Mcp reference registered handlers by name; a resource never names a Go package or file",
 			"no arbitrary code in resources",
 		},
 	}
@@ -213,7 +224,7 @@ func splitResource(value string) (Kind, string, error) {
 	}
 	kind := Kind(parts[0])
 	switch kind {
-	case KindModel, KindTable, KindForm, KindPage:
+	case KindModel, KindTable, KindForm, KindPage, KindApi, KindMcp:
 		return kind, parts[1], nil
 	default:
 		return "", "", fmt.Errorf("dsl: unsupported kind %q", kind)

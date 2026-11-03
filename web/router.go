@@ -95,6 +95,13 @@ func (r *Router) DELETE(path string, handler HandlerFunc) *Route {
 	return r.handle("DELETE", path, handler)
 }
 
+// Handle registers a route with an explicit method, for a route that comes from data rather
+// than code: a DSL Api resource names its verb at runtime, so there is no method-specific
+// helper to call.
+func (r *Router) Handle(method, path string, handler HandlerFunc) *Route {
+	return r.handle(method, path, handler)
+}
+
 func (r *Router) handle(method, path string, handler HandlerFunc) *Route {
 	full := joinPaths(r.prefix, path)
 	route := &Route{
@@ -105,7 +112,7 @@ func (r *Router) handle(method, path string, handler HandlerFunc) *Route {
 		group:  r.docGroup,
 		status: 200,
 	}
-	r.group.Handle(method, path, func(gc *gin.Context) {
+	r.group.Handle(method, ginPath(path), func(gc *gin.Context) {
 		ctx := &Context{gin: gc, server: r.server}
 		if err := handler(ctx); err != nil {
 			r.server.writeError(ctx, err)
@@ -113,6 +120,29 @@ func (r *Router) handle(method, path string, handler HandlerFunc) *Route {
 	})
 	r.server.addRoute(route)
 	return route
+}
+
+// ginPath translates the OpenAPI-style "{id}" a route may be written with into Gin's ":id".
+//
+// Routes are documented in OpenAPI syntax because that is what the specification, the DSL and
+// the frontend use; requiring handlers to spell parameters Gin's way would leak the router
+// into every path string and make a DSL-declared route impossible to register.
+func ginPath(path string) string {
+	if !strings.Contains(path, "{") {
+		return path
+	}
+	var builder strings.Builder
+	for i := 0; i < len(path); i++ {
+		switch path[i] {
+		case '{':
+			builder.WriteByte(':')
+		case '}':
+			// dropped: Gin does not delimit a parameter once it ends
+		default:
+			builder.WriteByte(path[i])
+		}
+	}
+	return builder.String()
 }
 
 // Route carries the documentation metadata for one endpoint.

@@ -95,3 +95,26 @@ func TestPageRejectsUnknownOrder(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// A route may be written with the OpenAPI-style parameter and still register.
+func TestOpenAPIStylePathParameters(t *testing.T) {
+	server := New(WithTitle("paths"))
+	server.Router().GET("/tasks/{id}", func(ctx *Context) error {
+		return ctx.JSON(200, map[string]string{"id": ctx.Param("id")})
+	}).Doc("get a task")
+
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/tasks/42", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", recorder.Code, recorder.Body)
+	}
+	if !strings.Contains(recorder.Body.String(), `"id":"42"`) {
+		t.Fatalf("body = %s", recorder.Body)
+	}
+	// The OpenAPI document keeps the specification's spelling.
+	if path := server.buildSpec("default").Paths; path != nil {
+		if _, ok := path["/tasks/{id}"]; !ok {
+			t.Fatalf("paths = %v", path)
+		}
+	}
+}

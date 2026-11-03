@@ -60,6 +60,16 @@ func (s *Set) Lint() Issues {
 		issues = append(issues, envelopeIssues(KindPage, doc.APIVersion, doc.Kind, doc.Metadata)...)
 		issues = append(issues, s.lintPage(doc)...)
 	}
+	for _, name := range sortedKeys(s.APIs) {
+		doc := s.APIs[name]
+		issues = append(issues, envelopeIssues(KindApi, doc.APIVersion, doc.Kind, doc.Metadata)...)
+		issues = append(issues, s.lintAPI(doc)...)
+	}
+	for _, name := range sortedKeys(s.MCPs) {
+		doc := s.MCPs[name]
+		issues = append(issues, envelopeIssues(KindMcp, doc.APIVersion, doc.Kind, doc.Metadata)...)
+		issues = append(issues, lintMcp(doc)...)
+	}
 	return issues
 }
 
@@ -232,6 +242,74 @@ func (s *Set) lintPage(doc *PageDoc) Issues {
 	if doc.Spec.Form != "" {
 		if _, ok := s.Forms[doc.Spec.Form]; !ok {
 			issues = append(issues, Issue{Resource: resource, Field: "spec.form", Message: fmt.Sprintf("unknown form %q", doc.Spec.Form)})
+		}
+	}
+	return issues
+}
+
+// apiMethods are the verbs an Api resource may declare.
+var apiMethods = map[string]bool{
+	"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true, "HEAD": true,
+}
+
+// lintAPI checks the binding, not the handler: whether the named handler exists is the
+// application's question, and Lint has no application. What it can prove is that the
+// resource is well-formed enough to bind later.
+func (s *Set) lintAPI(doc *ApiDoc) Issues {
+	resource := resourceKey(KindApi, doc.Metadata.Name)
+	var issues Issues
+	issue := func(message string) {
+		issues = append(issues, Issue{Resource: resource, Message: message})
+	}
+
+	if strings.TrimSpace(doc.Spec.Handler) == "" {
+		issue("spec.handler is required: an Api binds a registered Go handler")
+	}
+	if method := strings.TrimSpace(doc.Spec.Method); method != "" && !apiMethods[strings.ToUpper(method)] {
+		issue(fmt.Sprintf("unsupported method %q", method))
+	}
+	if path := strings.TrimSpace(doc.Spec.Path); path == "" {
+		issue("spec.path is required")
+	} else if strings.HasPrefix(path, "/") {
+		issue("spec.path is relative to the runtime prefix and must not start with /")
+	} else if strings.Contains(path, "..") || strings.Contains(path, "//") {
+		issue(fmt.Sprintf("spec.path %q is not a clean relative path", path))
+	}
+	if model := strings.TrimSpace(doc.Spec.Model); model != "" && s.Models[model] == nil {
+		issue(fmt.Sprintf("unknown model %q", model))
+	}
+	for _, guard := range doc.Spec.Guards {
+		if !resourceNameRE.MatchString(guard) {
+			issue(fmt.Sprintf("guard %q must match %s", guard, resourceNameRE))
+		}
+	}
+	return issues
+}
+
+// lintMcp checks the metadata a model will read.
+func lintMcp(doc *McpDoc) Issues {
+	resource := resourceKey(KindMcp, doc.Metadata.Name)
+	var issues Issues
+	issue := func(message string) {
+		issues = append(issues, Issue{Resource: resource, Message: message})
+	}
+
+	if strings.TrimSpace(doc.Spec.Handler) == "" {
+		issue("spec.handler is required: an Mcp resource names a registered Go handler")
+	}
+	if name := strings.TrimSpace(doc.Spec.Name); name != "" && !resourceNameRE.MatchString(name) {
+		issue(fmt.Sprintf("spec.name %q must match %s", name, resourceNameRE))
+	}
+	if doc.Spec.Params != nil {
+		// The schema is passed through, so the one thing worth checking is its shape: a
+		// model that gets a string where an object belongs cannot call the tool.
+		if kind, ok := doc.Spec.Params["type"]; ok && kind != "object" {
+			issue("spec.params is a JSON Schema object and its type must be \"object\"")
+		}
+	}
+	for _, guard := range doc.Spec.Guards {
+		if !resourceNameRE.MatchString(guard) {
+			issue(fmt.Sprintf("guard %q must match %s", guard, resourceNameRE))
 		}
 	}
 	return issues

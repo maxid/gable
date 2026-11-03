@@ -21,6 +21,11 @@ const (
 	KindTable Kind = "Table"
 	KindForm  Kind = "Form"
 	KindPage  Kind = "Page"
+	// KindApi binds an action to a Go handler the application registered. The DSL never
+	// names a Go package or a function path: only a symbolic name the app resolves.
+	KindApi Kind = "Api"
+	// KindMcp declares a tool's metadata for a Go handler the application registered.
+	KindMcp Kind = "Mcp"
 )
 
 // Metadata identifies a resource.

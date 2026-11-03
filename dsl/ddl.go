@@ -91,7 +91,13 @@ func ormType(kind string) (reflect.Type, error) {
 // Preview returns the preview payload for a resource. Models include their DDL;
 // Table/Form/Page return the low-code IR document.
 func (s *Set) Preview(kind Kind, name string, dialect orm.Dialect) (any, error) {
-	if kind != KindModel {
+	switch kind {
+	case KindApi:
+		return s.previewAPI(name)
+	case KindMcp:
+		return s.previewMCP(name)
+	case KindModel:
+	default:
 		return s.IR(kind, name)
 	}
 	doc, ok := s.Models[name]

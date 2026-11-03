@@ -16,6 +16,8 @@ type Set struct {
 	Tables  map[string]*TableDoc
 	Forms   map[string]*FormDoc
 	Pages   map[string]*PageDoc
+	APIs    map[string]*ApiDoc
+	MCPs    map[string]*McpDoc
 	Sources map[string]string // resource key (Kind/name) -> file path
 }
 
@@ -26,6 +28,8 @@ func NewSet() *Set {
 		Tables:  map[string]*TableDoc{},
 		Forms:   map[string]*FormDoc{},
 		Pages:   map[string]*PageDoc{},
+		APIs:    map[string]*ApiDoc{},
+		MCPs:    map[string]*McpDoc{},
 		Sources: map[string]string{},
 	}
 }
@@ -95,6 +99,22 @@ func LoadDir(dir string) (*Set, Issues, error) {
 			set.Pages[doc.Metadata.Name] = doc
 			set.Sources[key] = path
 		}
+		for key, doc := range loaded.APIs {
+			if _, exists := set.APIs[doc.Metadata.Name]; exists {
+				issues = append(issues, Issue{Resource: key, Message: "duplicate api name"})
+				continue
+			}
+			set.APIs[doc.Metadata.Name] = doc
+			set.Sources[key] = path
+		}
+		for key, doc := range loaded.MCPs {
+			if _, exists := set.MCPs[doc.Metadata.Name]; exists {
+				issues = append(issues, Issue{Resource: key, Message: "duplicate mcp name"})
+				continue
+			}
+			set.MCPs[doc.Metadata.Name] = doc
+			set.Sources[key] = path
+		}
 		return nil
 	})
 	if err != nil {
@@ -142,6 +162,18 @@ func LoadBytes(name string, data []byte) (*Set, Issues) {
 			return set, Issues{{Resource: name, Message: "parse page: " + err.Error()}}
 		}
 		set.Pages[doc.Metadata.Name] = &doc
+	case KindApi:
+		var doc ApiDoc
+		if err := yaml.Unmarshal(data, &doc); err != nil {
+			return set, Issues{{Resource: name, Message: "parse api: " + err.Error()}}
+		}
+		set.APIs[doc.Metadata.Name] = &doc
+	case KindMcp:
+		var doc McpDoc
+		if err := yaml.Unmarshal(data, &doc); err != nil {
+			return set, Issues{{Resource: name, Message: "parse mcp: " + err.Error()}}
+		}
+		set.MCPs[doc.Metadata.Name] = &doc
 	default:
 		return set, Issues{{Resource: name, Message: fmt.Sprintf("unsupported kind %q", head.Kind)}}
 	}
@@ -164,7 +196,7 @@ func isDSLDocument(data []byte) bool {
 	// A file that names one of our kinds is ours even with the wrong apiVersion: the
 	// author meant a resource, and the error must say so.
 	switch Kind(strings.TrimSpace(head.Kind)) {
-	case KindModel, KindTable, KindForm, KindPage:
+	case KindModel, KindTable, KindForm, KindPage, KindApi, KindMcp:
 		return true
 	default:
 		return false
@@ -195,6 +227,12 @@ func (s *Set) resources() []resource {
 	for _, name := range sortedKeys(s.Pages) {
 		out = append(out, resource{Kind: KindPage, Name: name, Doc: s.Pages[name]})
 	}
+	for _, name := range sortedKeys(s.APIs) {
+		out = append(out, resource{Kind: KindApi, Name: name, Doc: s.APIs[name]})
+	}
+	for _, name := range sortedKeys(s.MCPs) {
+		out = append(out, resource{Kind: KindMcp, Name: name, Doc: s.MCPs[name]})
+	}
 	return out
 }
 
@@ -222,6 +260,12 @@ func (s *Set) Resource(kind Kind, name string) (any, bool) {
 		return doc, ok
 	case KindPage:
 		doc, ok := s.Pages[name]
+		return doc, ok
+	case KindApi:
+		doc, ok := s.APIs[name]
+		return doc, ok
+	case KindMcp:
+		doc, ok := s.MCPs[name]
 		return doc, ok
 	default:
 		return nil, false

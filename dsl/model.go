@@ -1,5 +1,7 @@
 package dsl
 
+import "strings"
+
 // ModelDoc defines a runtime model: table, fields and the flags the ORM and
 // the low-code UI need.
 type ModelDoc struct {
@@ -139,4 +141,78 @@ type PageSpec struct {
 	Title string `yaml:"title,omitempty" json:"title,omitempty"`
 	Table string `yaml:"table,omitempty" json:"table,omitempty"`
 	Form  string `yaml:"form,omitempty" json:"form,omitempty"`
+}
+
+// ApiDoc binds one action to a Go handler the application registered.
+//
+// The DSL carries the binding, not the code: `spec.handler` is a symbolic name looked up in
+// the application's Registry, so a resource can never name a package, a file or a function
+// path. That is what keeps "no arbitrary code in resources" true while still letting a
+// low-code page call real business logic.
+type ApiDoc struct {
+	APIVersion string   `yaml:"apiVersion" json:"apiVersion"`
+	Kind       Kind     `yaml:"kind" json:"kind"`
+	Metadata   Metadata `yaml:"metadata" json:"metadata"`
+	Spec       ApiSpec  `yaml:"spec" json:"spec"`
+}
+
+// ApiSpec is the Api body.
+type ApiSpec struct {
+	// Handler is the name the application registered with Registry.API.
+	Handler string `yaml:"handler" json:"handler"`
+	// Model scopes the action to a model; when set the model must exist.
+	Model string `yaml:"model,omitempty" json:"model,omitempty"`
+	// Method is the HTTP method; empty means POST (an action changes something unless it
+	// says otherwise).
+	Method string `yaml:"method,omitempty" json:"method,omitempty"`
+	// Path is the route relative to the runtime prefix, e.g. "task/{id}/close".
+	Path string `yaml:"path" json:"path"`
+	// Guards are symbolic names the application registered with Registry.Guard. An
+	// unregistered guard is an error: running the action unguarded instead is the failure
+	// mode nobody notices until it is a breach.
+	Guards []string `yaml:"guards,omitempty" json:"guards,omitempty"`
+	// Audit marks the action as one that must be audited; the application implements it.
+	Audit bool `yaml:"audit,omitempty" json:"audit,omitempty"`
+}
+
+// MethodOrDefault returns the HTTP method of the action.
+func (d *ApiDoc) MethodOrDefault() string {
+	if method := strings.ToUpper(strings.TrimSpace(d.Spec.Method)); method != "" {
+		return method
+	}
+	return "POST"
+}
+
+// McpDoc declares a tool for a Go handler the application registered.
+//
+// The metadata is the part an LLM sees — name, description, input schema — and it is allowed
+// to change without a code deploy. The implementation stays in Go.
+type McpDoc struct {
+	APIVersion string   `yaml:"apiVersion" json:"apiVersion"`
+	Kind       Kind     `yaml:"kind" json:"kind"`
+	Metadata   Metadata `yaml:"metadata" json:"metadata"`
+	Spec       McpSpec  `yaml:"spec" json:"spec"`
+}
+
+// McpSpec is the Mcp body.
+type McpSpec struct {
+	// Handler is the name the application registered with Registry.Tool.
+	Handler string `yaml:"handler" json:"handler"`
+	// Name overrides the exposed tool name; empty uses the handler name.
+	Name string `yaml:"name,omitempty" json:"name,omitempty"`
+	// Description is what the model reads when choosing a tool.
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	// Params is a JSON Schema object for the tool input. It is kept as raw YAML/JSON so a
+	// resource can carry the schema without the framework reinterpreting it.
+	Params map[string]any `yaml:"params,omitempty" json:"params,omitempty"`
+	// Guards are symbolic names the application registered with Registry.Guard.
+	Guards []string `yaml:"guards,omitempty" json:"guards,omitempty"`
+}
+
+// ToolName returns the name the tool is exposed under.
+func (d *McpDoc) ToolName() string {
+	if name := strings.TrimSpace(d.Spec.Name); name != "" {
+		return name
+	}
+	return d.Spec.Handler
 }
