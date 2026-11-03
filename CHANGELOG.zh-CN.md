@@ -26,6 +26,7 @@
 - 修复：`orm.Open` 把 `postgres` 当方言接收却当驱动名传给 `sql.Connect`；PostgreSQL 走 `pgx`，现在每个别名都会打开真正注册的驱动。
 - DSL 首刀：`gable/v1` Model/Table/Form/Page、lint、Model DDL、`lcdp.ir/v1` preview、幂等 file apply 与 `gable dsl` 命令。
 - DSL runtime：动态 `/dsl/data/<model>` CRUD、租户守卫、vamis 分页别名与 `gable dsl serve`；stdio MCP 工具（`gable dsl mcp`）。
+- MCP 客户端：`mcp.Dial` 通过 streamable HTTP 或 stdio 子进程连远端服务器（此前 `gable/mcp` 只有服务端），`gable mcp list/call` 提供命令行入口。`CallTool` 把 `IsError` 结果当数据返回，调用方能区分「工具拒绝」与「传输失败」；`mcp call` 在前者以非零码退出。gmcp 的 HTTP 客户端补上了 stdio 客户端早已有的 `ListTools`/`CallTool`。
 - DSL connector：`spec.connector` 指向用 `dsl.Connectors` 注册的数据库（驱动 + DSN + 连接池），该模型的所有语句（含 `Migrate`）都发往那里。声明未注册 connector 的 Model 在集合绑定时被拒绝，而不是第一次请求。`gable dsl serve --connector name=dsn` 添加连接；跨 connector 事务明确不支持。
 - DSL 运行期重载：`dsl.Runtime.Reload` 原子替换资源快照，一个请求只看到完整的一集；`gable dsl serve --reload 30s` 轮询、SIGHUP 立即重载，并像启动那样为新模型建表。不通过 lint 的集合会被拒绝，运行中的快照继续服务。元数据新增 `readonly`（push/restore 拒绝覆盖已存 readonly 资源）、`status`（`active`/`deprecated`）、`tags`、`sort`。
 - DSL 的 `Api` 与 `Mcp` kind：Api 把一个动作绑定到 `dsl.NewRegistry().API(name, fn)` 注册的 handler，守卫也按名字注册；Mcp 为已注册的工具 handler 声明模型可读的元数据。名字没注册过（handler 或守卫）会在绑定期失败，而不是生成无守卫路由。路由用 OpenAPI 写法（`{id}`），由 router 注册成 Gin 的拼法。

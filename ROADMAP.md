@@ -33,6 +33,8 @@
 - [x] Cookie sessions and MFA (TOTP + one-time recovery codes, login ticket)
 - [x] `rpc`: local + HTTP/JSON bindings with a resolver port (Nacos adapter lives with the deployment)
 - [x] `mcp`: operations as MCP tools over HTTP (shared-key transport check)
+- [x] `mcp`: client for remote servers (HTTP and stdio) with `gable mcp list/call`
+- [x] `mcp`: client for remote servers (HTTP and stdio) with `gable mcp list/call`
 - [x] `ai`: tool-calling conversation loop over `gai` (bounded rounds and history)
 - [ ] Low-code resources compiled to the LCDP IR
 - [x] CLI: `new`, `dev`, `version`

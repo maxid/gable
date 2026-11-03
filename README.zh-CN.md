@@ -449,6 +449,34 @@ server := web.New(web.WithHealth(app.Health()), web.WithMetrics(app.Metrics()))
 
 两个端点都在六字段包络之外：抓取器和编排器读的是状态码与文本，不是应用的响应契约。
 
+## 连接远端 MCP 服务器
+
+`gable/mcp` 是双向的：既是你挂载的服务端，也是连别人服务端的客户端。
+
+```go
+client, err := mcp.Dial(ctx, mcp.Endpoint{URL: "https://tools.internal/mcp"})
+defer client.Close()
+
+tools, err := client.ListTools(ctx)
+result, err := client.CallTool(ctx, "orders.summary", json.RawMessage(`{"days":7}`))
+```
+
+HTTP 端点与 stdio 子进程（`Endpoint{Command: []string{"gable","dsl","mcp","--dir","."}}`）只差在传输方式：
+同一个客户端都能列工具、调工具。stdio 客户端**拥有**那个子进程——`Close` 会停掉它，并且持续读它的 stderr，
+以免一个爱写日志的服务器写满管道后卡死。
+
+工具失败会以带 `IsError` 的结果返回，因为 MCP 就是这么建模的；调用方能区分「工具说不行」和「传输断了」。
+
+```bash
+gable mcp list  --url https://tools.internal/mcp
+gable mcp call  orders.summary --url https://tools.internal/mcp --arguments '{"days":7}'
+
+# DSL 工具面同样可以这样访问
+gable mcp list --command gable --arg dsl --arg mcp --arg --dir --arg ./resources
+```
+
+`mcp call` 在工具报错时以非零码退出，脚本与人看到同一个结论。
+
 ## 命名空间
 
 ```yaml

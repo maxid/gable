@@ -170,7 +170,7 @@ tables — altering one is a data-loss decision that belongs to explicit migrati
 | `tenant` | single/saas resolution, context, host login rules, impersonation |
 | `orm` | sqlx-backed repositories, tenant guard, migrations, gcosid keys |
 | `rpc` | typed Client with local and HTTP/JSON bindings, shared-key auth, pluggable resolver; `rpc/nacos` resolves through the registry |
-| `mcp` | exposes operations as MCP tools over Streamable HTTP, with a shared-key transport check |
+| `mcp` | exposes operations as MCP tools over Streamable HTTP (shared-key transport check) and dials remote servers over HTTP or stdio |
 | `ai` | tool-calling conversation loop over `gai`, with bounded rounds and bounded history |
 | `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply, file/database store, diff/history/restore |
 | `validate` | struct validation into a field list the envelope can carry |
@@ -593,6 +593,38 @@ server := web.New(web.WithHealth(app.Health()), web.WithMetrics(app.Metrics()))
 
 Both endpoints are outside the JSON envelope: a scraper and an orchestrator read status
 codes and text, not the application's response contract.
+
+## Talking to a remote MCP server
+
+`gable/mcp` is both sides: the server your application mounts, and a client for somebody
+else's.
+
+```go
+client, err := mcp.Dial(ctx, mcp.Endpoint{URL: "https://tools.internal/mcp"})
+defer client.Close()
+
+tools, err := client.ListTools(ctx)
+result, err := client.CallTool(ctx, "orders.summary", json.RawMessage(`{"days":7}`))
+```
+
+The transport is the only difference between an HTTP endpoint and a stdio subprocess
+(`Endpoint{Command: []string{"gable","dsl","mcp","--dir","."}}`): the same client lists and
+calls either. A stdio client owns the child process — `Close` stops it, and its stderr is
+drained so a chatty server cannot block on a full pipe.
+
+A tool failure comes back as a result with `IsError` set, because that is how MCP models it;
+the caller keeps the difference between "the tool said no" and "the transport broke".
+
+```bash
+gable mcp list  --url https://tools.internal/mcp
+gable mcp call  orders.summary --url https://tools.internal/mcp --arguments '{"days":7}'
+
+# the DSL tool surface is reachable the same way
+gable mcp list --command gable --arg dsl --arg mcp --arg --dir --arg ./resources
+```
+
+`mcp call` exits non-zero when the tool reports an error, so a script gets the same verdict a
+human reads.
 
 ## Namespaces
 

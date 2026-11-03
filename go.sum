@@ -344,6 +344,8 @@ github.com/maxid/glogs v0.0.0-20261029144859-382e4fa15661 h1:kK3WDg+bS0MffBVQFqm
 github.com/maxid/glogs v0.0.0-20261029144859-382e4fa15661/go.mod h1:tfffGhtAHnR2lbO58Zfr/W9VE/hZkbpPfuRX6QAgOUY=
 github.com/maxid/gmcp v0.0.0-20261101085736-b8600f4f82b8 h1:txSsmx8BYmLI4xXL/9UefTjQ/ul7TTgtCizRMfXQ5pA=
 github.com/maxid/gmcp v0.0.0-20261101085736-b8600f4f82b8/go.mod h1:qwdlhEvbwFGokNl0TwH5XYJ2NaBR3xmdpNsQVAxzxfY=
+github.com/maxid/gmcp v0.0.0-20261103060323-87886a8c402b h1:LWwj48+MslpAGz+yv34rejLEyr2ectT5786H8KLnDUE=
+github.com/maxid/gmcp v0.0.0-20261103060323-87886a8c402b/go.mod h1:qwdlhEvbwFGokNl0TwH5XYJ2NaBR3xmdpNsQVAxzxfY=
 github.com/maxid/gns v0.0.0-20261031175400-9ad9adafc373 h1:qY+CgTjBRa/W6MXUIBXnVkyMFwLBf7CwqfUMvZQWBbk=
 github.com/maxid/gns v0.0.0-20261031175400-9ad9adafc373/go.mod h1:dKx9prsgndaFJOhz1w0TUsRvoOXU2za/tCcTY+a4bNc=
 github.com/maxid/gplugin v0.0.0-20261102034223-09f50dbe8e66 h1:e9zsH99GPYer7da4Zgr50/J5EiiP0E3zXD4bkJBGBA4=

@@ -71,6 +71,12 @@ All notable changes to this project will be documented in this file.
 - DSL runtime: dynamic `/dsl/data/<model>` CRUD with tenant guard, vamis
   pagination aliases and `gable dsl serve`; MCP tools over stdio
   (`gable dsl mcp`).
+- MCP client: `mcp.Dial` reaches a remote server over streamable HTTP or a stdio
+  subprocess (`gable/mcp` was server-only), and `gable mcp list/call` drives it from the
+  shell. `CallTool` returns an `IsError` result as data, so a caller keeps the difference
+  between a tool refusing and the transport failing; `mcp call` exits non-zero on the
+  former. gmcp's HTTP client gained the `ListTools`/`CallTool` helpers its stdio client
+  already had.
 - DSL connectors: `spec.connector` names a database (driver + DSN + pool) registered with
   `dsl.Connectors`, and every statement for that model — including `Migrate` — goes there.
   A model naming an unregistered connector is refused when the set is bound, not on the first

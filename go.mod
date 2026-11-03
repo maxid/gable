@@ -15,7 +15,7 @@ require (
 	github.com/maxid/gcache v0.0.0-20261031175843-f61b108fc349
 	github.com/maxid/gcosid v0.0.0-20261031112445-cbc7c57c79f7
 	github.com/maxid/glogs v0.0.0-20261029144859-382e4fa15661
-	github.com/maxid/gmcp v0.0.0-20261101085736-b8600f4f82b8
+	github.com/maxid/gmcp v0.0.0-20261103060323-87886a8c402b
 	github.com/maxid/gns v0.0.0-20261031175400-9ad9adafc373
 	github.com/nacos-group/nacos-sdk-go/v2 v2.3.5
 	github.com/spf13/cobra v1.10.2
