@@ -22,6 +22,7 @@
 - [x] DSL: database store (`NewDBStore`: migrate/load/save, one row per resource, every write kept in a revision table), `gable dsl push`, `serve --load db`
 - [x] DSL: diff/dry-run, revision history and restore over the database store
 - [x] DSL: runtime reload/unload (`--reload`, SIGHUP) and resource metadata (`readonly`, `status`, `tags`, `sort`)
+- [x] DSL: connectors (`spec.connector`) — one model definition, several databases, bind-time validation
 - [x] DSL: Api/Mcp kinds (bind actions and tools to registered Go handlers, named guards, bind-time validation)
 - [x] Auth core: password, JWT/opaque access, opaque refresh rotation, bearer middleware
 - [x] Passport-compatible Login/refresh/logout + OAuth2 token/introspection/revocation endpoints

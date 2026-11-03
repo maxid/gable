@@ -483,6 +483,7 @@ func newDSLServeCommand() *cobra.Command {
 		rootCode  string
 		machine   int64
 		reload    time.Duration
+		connector []string
 	)
 	cmd := &cobra.Command{
 		Use:   "serve",
@@ -511,7 +512,11 @@ func newDSLServeCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			runtime, err := dsl.NewRuntime(db, set, dsl.WithDefaultIDGenerator(ids))
+			connectors, err := dslConnectors(db, driver, connector)
+			if err != nil {
+				return err
+			}
+			runtime, err := dsl.NewRuntime(db, set, dsl.WithDefaultIDGenerator(ids), dsl.WithConnectors(connectors))
 			if err != nil {
 				return err
 			}
@@ -567,7 +572,31 @@ func newDSLServeCommand() *cobra.Command {
 	cmd.Flags().StringVar(&rootCode, "root-code", "management", "root tenant code")
 	cmd.Flags().Int64Var(&machine, "machine-id", 1, "gcosid snowflake machine id")
 	cmd.Flags().DurationVar(&reload, "reload", 0, "poll interval for resource changes (e.g. 30s); SIGHUP always reloads")
+	cmd.Flags().StringArrayVar(&connector, "connector", nil, "named connector as name=dsn, repeatable (models name it via spec.connector)")
 	return cmd
+}
+
+// dslConnectors builds the connector set: the --dsn database is the default, and each
+// --connector adds a named one.
+//
+// A malformed flag or an unreachable database is a startup error: a model that names a
+// connector nobody can open must not boot into a state where that model 500s.
+func dslConnectors(defaultDB *orm.DB, driver string, named []string) (*dsl.Connectors, error) {
+	connectors := dsl.NewConnectors(defaultDB)
+	for _, entry := range named {
+		name, dsn, ok := strings.Cut(entry, "=")
+		if !ok || strings.TrimSpace(dsn) == "" {
+			return nil, fmt.Errorf("dsl: --connector wants name=dsn, got %q", entry)
+		}
+		db, err := openDSLDB(driver, dsn)
+		if err != nil {
+			return nil, fmt.Errorf("dsl: connector %s: %w", name, err)
+		}
+		if err := connectors.Add(name, db); err != nil {
+			return nil, err
+		}
+	}
+	return connectors, nil
 }
 
 // watchDSLResources reloads the runtime on SIGHUP and, when an interval is set, on a timer.

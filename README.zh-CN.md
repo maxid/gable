@@ -309,6 +309,33 @@ gable dsl history Model/task --dsn '...'
 gable dsl restore Model/task --revision 3 --dsn '...'
 ```
 
+### 一套定义，多个数据库
+
+Model 可以声明 connector——「驱动 + DSN + 连接池」的名字——于是同一份定义换个库不用改：
+
+```yaml
+apiVersion: gable/v1
+kind: Model
+metadata: {name: revenue}
+spec:
+  table: revenue
+  connector: reporting        # 留空即默认 connector
+  fields:
+    - {name: id, type: int64, primary: true}
+    - {name: amount, type: int64}
+```
+
+```bash
+gable dsl serve --load db --dsn '.../app' \
+  --connector 'reporting=.../reporting' --addr :8088
+```
+
+该模型的所有语句——列表、单条、增删改，以及启动时的 `Migrate`——都发往它声明的库。
+声明了未注册 connector 的 Model 会在**集合绑定时**（构造与每次重载）被拒绝，而不是第一次请求才 500。
+
+方言不是 connector：方言决定 SQL 语法，connector 决定语句发往哪个库。一个部署通常只有一种方言、多个 connector。
+**跨 connector 事务不支持**，也不假装支持——跨库写入需要应用层补偿，而不是框架的承诺。
+
 ### 不重启地重载
 
 ```bash

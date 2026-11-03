@@ -104,6 +104,13 @@ func lintModel(doc *ModelDoc) Issues {
 	if !identifierRE.MatchString(doc.TableName()) {
 		issues = append(issues, Issue{Resource: resource, Field: "spec.table", Message: "table must be a snake_case identifier (set spec.table when the resource name contains dots)"})
 	}
+	if connector := strings.TrimSpace(doc.Spec.Connector); connector != "" && !resourceNameRE.MatchString(connector) {
+		issues = append(issues, Issue{
+			Resource: resource,
+			Field:    "spec.connector",
+			Message:  fmt.Sprintf("connector %q must match %s", connector, resourceNameRE),
+		})
+	}
 	if len(doc.Spec.Fields) == 0 {
 		issues = append(issues, Issue{Resource: resource, Field: "spec.fields", Message: "at least one field is required"})
 		return issues

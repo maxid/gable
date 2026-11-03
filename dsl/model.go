@@ -15,6 +15,9 @@ type ModelDoc struct {
 type ModelSpec struct {
 	Table  string      `yaml:"table,omitempty" json:"table,omitempty"`
 	Fields []FieldSpec `yaml:"fields" json:"fields"`
+	// Connector names the database this model lives in. Empty means the default connector,
+	// so a single-database application never writes the field.
+	Connector string `yaml:"connector,omitempty" json:"connector,omitempty"`
 }
 
 // FieldSpec is one model field.

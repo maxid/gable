@@ -200,8 +200,9 @@ func Schema() map[string]any {
 			},
 			"Model": map[string]any{
 				"required": []string{"spec.fields"},
-				"fields":   "name, type, size, primary, tenant, required, unique, autoCreate, autoUpdate, generator, default, enum, label",
+				"fields":   "table, connector, fields[]",
 				"types":    []string{"int64", "int32", "string", "text", "bool", "float64", "time", "json"},
+				"rules":    []string{"exactly one primary key; connector names a registered connector (empty is the default)"},
 			},
 			"Table": map[string]any{"required": []string{"spec.model"}, "fields": "model, columns, filters, runtimeApi"},
 			"Form":  map[string]any{"required": []string{"spec.model"}, "fields": "model, fields, layout"},

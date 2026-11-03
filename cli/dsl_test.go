@@ -8,8 +8,27 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/jmoiron/sqlx"
+
 	"github.com/maxid/gable/dsl"
+	"github.com/maxid/gable/orm"
 )
+
+// newMockConnectorDB is a database handle the connector tests can compare by identity.
+func newMockConnectorDB(t *testing.T) (*orm.DB, sqlmock.Sqlmock) {
+	t.Helper()
+	sqlDB, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	db, err := orm.New(sqlx.NewDb(sqlDB, "mysql"), orm.MySQL())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return db, mock
+}
 
 const cliModel = `apiVersion: gable/v1
 kind: Model
@@ -207,5 +226,27 @@ func TestPrintDiff(t *testing.T) {
 	printDiff(&empty, dsl.Diff{}, false)
 	if empty.String() != "no changes\n" {
 		t.Fatalf("empty = %q", empty.String())
+	}
+}
+
+func TestDSLConnectorsFlagParsing(t *testing.T) {
+	db, _ := newMockConnectorDB(t)
+	if _, err := dslConnectors(db, "mysql", []string{"no-equals"}); err == nil ||
+		!strings.Contains(err.Error(), "name=dsn") {
+		t.Fatalf("err = %v", err)
+	}
+	// A malformed DSN is rejected before the server starts.
+	if _, err := dslConnectors(db, "mysql", []string{"reporting=root:secret@tcp(127.0.0.1:1)/app"}); err == nil {
+		t.Fatal("an unreachable connector must fail at startup")
+	}
+	connectors, err := dslConnectors(db, "mysql", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if names := connectors.Names(); len(names) != 1 || names[0] != "default" {
+		t.Fatalf("names = %v", names)
+	}
+	if connectors.Default() != db {
+		t.Fatal("--dsn must be the default connector")
 	}
 }

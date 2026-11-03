@@ -24,7 +24,7 @@ import (
 // request either sees the whole old set or the whole new one, so a reload cannot serve a model
 // whose table metadata is half-replaced.
 type Runtime struct {
-	db         *orm.DB
+	connectors *Connectors
 	set        atomic.Pointer[Set]
 	ids        map[string]gcosid.Generator
 	defaultIDs gcosid.Generator
@@ -48,6 +48,18 @@ func WithDefaultIDGenerator(generator gcosid.Generator) RuntimeOption {
 	return func(r *Runtime) { r.defaultIDs = generator }
 }
 
+// WithConnectors binds the runtime to a connector set instead of a single database.
+//
+// The default connector is the one passed to NewRuntime; this option adds the named ones a
+// model may point at.
+func WithConnectors(connectors *Connectors) RuntimeOption {
+	return func(r *Runtime) {
+		if connectors != nil {
+			r.connectors = connectors
+		}
+	}
+}
+
 // NewRuntime validates the set and binds it to a database.
 func NewRuntime(db *orm.DB, set *Set, opts ...RuntimeOption) (*Runtime, error) {
 	if db == nil {
@@ -59,12 +71,33 @@ func NewRuntime(db *orm.DB, set *Set, opts ...RuntimeOption) (*Runtime, error) {
 	if issues := set.Lint(); len(issues) > 0 {
 		return nil, issues
 	}
-	runtime := &Runtime{db: db, ids: map[string]gcosid.Generator{}}
+	runtime := &Runtime{connectors: NewConnectors(db), ids: map[string]gcosid.Generator{}}
 	runtime.set.Store(set)
 	for _, opt := range opts {
 		opt(runtime)
 	}
+	// A model that names an unregistered connector is a wiring error, not a 500 on the first
+	// request against it.
+	if issues := runtime.connectors.Validate(set); len(issues) > 0 {
+		return nil, issues
+	}
 	return runtime, nil
+}
+
+// Connectors returns the connector set the runtime resolves models through.
+func (r *Runtime) Connectors() *Connectors { return r.connectors }
+
+// dbFor returns the database of the connector a model names.
+func (r *Runtime) dbFor(doc *ModelDoc) (*orm.DB, error) { return r.connectors.For(doc) }
+
+// dialectFor renders SQL for the model's connector. Resolution cannot fail here: an unknown
+// connector is rejected when the set is bound, so this is only the quoting style.
+func (r *Runtime) dialectFor(doc *ModelDoc) orm.Dialect {
+	db, err := r.dbFor(doc)
+	if err != nil {
+		return r.connectors.Default().Dialect()
+	}
+	return db.Dialect()
 }
 
 // Set returns the loaded resources.
@@ -106,7 +139,11 @@ func (r *Runtime) Migrate(context.Context) error {
 		if err != nil {
 			return err
 		}
-		if err := r.db.AutoMigrate(model); err != nil {
+		db, err := r.dbFor(doc)
+		if err != nil {
+			return err
+		}
+		if err := db.AutoMigrate(model); err != nil {
 			return err
 		}
 	}
@@ -161,13 +198,17 @@ func (r *Runtime) List(ctx context.Context, model string, opts ListOptions) (*Pa
 	if err != nil {
 		return nil, err
 	}
-	dialect := r.db.Dialect()
+	db, err := r.dbFor(doc)
+	if err != nil {
+		return nil, err
+	}
+	dialect := db.Dialect()
 	countSQL := "SELECT COUNT(*) FROM " + dialect.Quote(doc.TableName())
 	if where != "" {
 		countSQL += " WHERE " + where
 	}
 	var total int64
-	if err := r.db.QueryRowContext(ctx, countSQL, args...).Scan(&total); err != nil {
+	if err := db.QueryRowContext(ctx, countSQL, args...).Scan(&total); err != nil {
 		return nil, err
 	}
 
@@ -181,7 +222,7 @@ func (r *Runtime) List(ctx context.Context, model string, opts ListOptions) (*Pa
 		statement += " " + pagination
 	}
 
-	rows, err := r.db.QueryContext(ctx, statement, args...)
+	rows, err := db.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -203,9 +244,13 @@ func (r *Runtime) Get(ctx context.Context, model string, id int64) (map[string]a
 	if err != nil {
 		return nil, err
 	}
-	dialect := r.db.Dialect()
+	db, err := r.dbFor(doc)
+	if err != nil {
+		return nil, err
+	}
+	dialect := db.Dialect()
 	statement := "SELECT " + r.columns(doc) + " FROM " + dialect.Quote(doc.TableName()) + " WHERE " + where
-	rows, err := r.db.QueryContext(ctx, statement, args...)
+	rows, err := db.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -294,11 +339,15 @@ func (r *Runtime) Create(ctx context.Context, model string, payload map[string]a
 		values[primary.Name] = id
 	}
 
+	db, err := r.dbFor(doc)
+	if err != nil {
+		return nil, err
+	}
 	var columns []string
 	var placeholders []string
 	var args []any
 	index := 1
-	dialect := r.db.Dialect()
+	dialect := db.Dialect()
 	for _, field := range doc.Spec.Fields {
 		value, ok := values[field.Name]
 		if !ok || (autoIncrement && field.Primary) {
@@ -314,12 +363,12 @@ func (r *Runtime) Create(ctx context.Context, model string, payload map[string]a
 	if autoIncrement && dialect.Returning() {
 		statement += " RETURNING " + dialect.Quote(primary.Name)
 		var id int64
-		if err := r.db.QueryRowContext(ctx, statement, args...).Scan(&id); err != nil {
+		if err := db.QueryRowContext(ctx, statement, args...).Scan(&id); err != nil {
 			return nil, err
 		}
 		values[primary.Name] = id
 	} else {
-		result, err := r.db.ExecContext(ctx, statement, args...)
+		result, err := db.ExecContext(ctx, statement, args...)
 		if err != nil {
 			return nil, err
 		}
@@ -348,10 +397,14 @@ func (r *Runtime) Update(ctx context.Context, model string, id int64, payload ma
 		return nil, err
 	}
 
+	db, err := r.dbFor(doc)
+	if err != nil {
+		return nil, err
+	}
 	var sets []string
 	var args []any
 	index := 1
-	dialect := r.db.Dialect()
+	dialect := db.Dialect()
 	for _, field := range doc.Spec.Fields {
 		if field.Primary || field.Tenant || field.AutoCreate {
 			continue
@@ -383,7 +436,7 @@ func (r *Runtime) Update(ctx context.Context, model string, id int64, payload ma
 	}
 	args = append(args, whereArgs...)
 	statement := "UPDATE " + dialect.Quote(doc.TableName()) + " SET " + strings.Join(sets, ", ") + " WHERE " + where
-	if err := execAffected(r.db.ExecContext(ctx, statement, args...)); err != nil {
+	if err := execAffected(db.ExecContext(ctx, statement, args...)); err != nil {
 		return nil, err
 	}
 	return r.Get(ctx, model, id)
@@ -399,9 +452,13 @@ func (r *Runtime) Delete(ctx context.Context, model string, id int64) error {
 	if err != nil {
 		return err
 	}
-	dialect := r.db.Dialect()
+	db, err := r.dbFor(doc)
+	if err != nil {
+		return err
+	}
+	dialect := db.Dialect()
 	statement := "DELETE FROM " + dialect.Quote(doc.TableName()) + " WHERE " + where
-	return execAffected(r.db.ExecContext(ctx, statement, args...))
+	return execAffected(db.ExecContext(ctx, statement, args...))
 }
 
 func (r *Runtime) model(name string) (*ModelDoc, error) {
@@ -413,7 +470,13 @@ func (r *Runtime) model(name string) (*ModelDoc, error) {
 }
 
 func (r *Runtime) columns(doc *ModelDoc) string {
-	dialect := r.db.Dialect()
+	// The quoting style comes from the dialect; every supported dialect quotes identifiers
+	// the same way structurally, so the model's own connector decides it.
+	db, err := r.dbFor(doc)
+	if err != nil {
+		db = r.connectors.Default()
+	}
+	dialect := db.Dialect()
 	columns := make([]string, 0, len(doc.Spec.Fields))
 	for _, field := range doc.Spec.Fields {
 		columns = append(columns, dialect.Quote(field.Name))
@@ -433,7 +496,7 @@ func (r *Runtime) currentTenant(ctx context.Context, doc *ModelDoc) (tenant.Tena
 }
 
 func (r *Runtime) where(ctx context.Context, doc *ModelDoc, filters map[string]string) (string, []any, error) {
-	dialect := r.db.Dialect()
+	dialect := r.dialectFor(doc)
 	index := 1
 	var parts []string
 	var args []any
@@ -474,7 +537,7 @@ func (r *Runtime) whereByID(ctx context.Context, doc *ModelDoc, id int64) (strin
 }
 
 func (r *Runtime) whereByIDFrom(ctx context.Context, doc *ModelDoc, id int64, start *int) (string, []any, error) {
-	dialect := r.db.Dialect()
+	dialect := r.dialectFor(doc)
 	index := 1
 	if start != nil {
 		index = *start

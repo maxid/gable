@@ -425,6 +425,38 @@ gable dsl history Model/task --dsn '...'
 gable dsl restore Model/task --revision 3 --dsn '...'
 ```
 
+### One definition, several databases
+
+A model can name a connector — a name for "driver + DSN + pool" — so the same definition
+points at a different database without being edited:
+
+```yaml
+apiVersion: gable/v1
+kind: Model
+metadata: {name: revenue}
+spec:
+  table: revenue
+  connector: reporting        # empty means the default connector
+  fields:
+    - {name: id, type: int64, primary: true}
+    - {name: amount, type: int64}
+```
+
+```bash
+gable dsl serve --load db --dsn '.../app' \
+  --connector 'reporting=.../reporting' --addr :8088
+```
+
+Every query the runtime issues for that model — list, get, create, update, delete, and the
+`Migrate` at startup — goes to the named database. A model that names an unregistered
+connector is refused **when the set is bound** (construction and every reload), not on the
+first request that touches it.
+
+A dialect is not a connector: the dialect decides SQL syntax, the connector decides which
+database receives it. One deployment usually has one dialect and several connectors.
+**Cross-connector transactions are not supported** and are not pretended to be — a write that
+spans two databases needs an application-level compensation, not a framework promise.
+
 ### Reloading without a restart
 
 ```bash

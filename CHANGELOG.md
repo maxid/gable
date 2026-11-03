@@ -71,6 +71,11 @@ All notable changes to this project will be documented in this file.
 - DSL runtime: dynamic `/dsl/data/<model>` CRUD with tenant guard, vamis
   pagination aliases and `gable dsl serve`; MCP tools over stdio
   (`gable dsl mcp`).
+- DSL connectors: `spec.connector` names a database (driver + DSN + pool) registered with
+  `dsl.Connectors`, and every statement for that model — including `Migrate` — goes there.
+  A model naming an unregistered connector is refused when the set is bound, not on the first
+  request. `gable dsl serve --connector name=dsn` adds one; cross-connector transactions are
+  explicitly unsupported.
 - DSL runtime reload: `dsl.Runtime.Reload` swaps the resource snapshot atomically, so a
   request sees one whole set; `gable dsl serve --reload 30s` polls and SIGHUP reloads on
   demand, creating the tables of newly added models the way startup does. A set that does not
