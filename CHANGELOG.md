@@ -71,6 +71,11 @@ All notable changes to this project will be documented in this file.
 - DSL runtime: dynamic `/dsl/data/<model>` CRUD with tenant guard, vamis
   pagination aliases and `gable dsl serve`; MCP tools over stdio
   (`gable dsl mcp`).
+- AI streaming: `ai.Service.Stream` turns the bounded tool loop inside out — text arrives as
+  it is generated, tool calls and their results are events, and `Done` is a normal event
+  followed by `io.EOF`. `Stream.ServeSSE` writes `text/event-stream` with a flush per event,
+  `[DONE]`, and `X-Accel-Buffering: no`; a provider failure after the headers is sent as an
+  `event: error` frame. Provider selection gains `anthropic` (Messages API).
 - MCP client: `mcp.Dial` reaches a remote server over streamable HTTP or a stdio
   subprocess (`gable/mcp` was server-only), and `gable mcp list/call` drives it from the
   shell. `CallTool` returns an `IsError` result as data, so a caller keeps the difference

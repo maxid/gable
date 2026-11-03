@@ -147,6 +147,39 @@ not configurable into "off": `MaxIterations` (a confused model must not become a
 infinite bill) and `MaxHistory` (history is trimmed at a user turn, so a tool call is
 never separated from its result).
 
+## Streamed answers
+
+`ai.Service` is the same bounded tool loop as `Ask`, with the answer turned inside out:
+
+```go
+stream, err := service.Stream(ctx, sessionID, "how many orders this week?")
+defer stream.Close()
+
+for {
+    event, err := stream.Recv()
+    if err == io.EOF { break }
+    if err != nil { return err }
+    switch {
+    case event.Delta != "":     send(event.Delta)          // text as it is generated
+    case event.ToolCall != nil: show(event.ToolCall.Name)  // "calling orders.summary…"
+    case event.ToolResult != nil: show(event.ToolResult)
+    case event.Done:            return nil
+    }
+}
+```
+
+`Done` is a normal event and the next `Recv` reports `io.EOF`: folding the last event into the
+error would make a caller that checks the error first silently drop the end of the answer.
+
+For a browser, `stream.ServeSSE(w)` writes `text/event-stream` with a flush per event, a
+`[DONE]` sentinel, and `X-Accel-Buffering: no` so a proxy does not hold the answer until the
+connection closes. A provider failure after the headers are sent travels as an `event: error`
+frame instead of being swallowed.
+
+The provider is chosen by name: `openai` (OpenAI and every server copying that wire format) or
+`anthropic` (the Messages API, where the system prompt is top-level and tool calls are content
+blocks). A vendor that fits neither gets its own adapter rather than a pile of flags.
+
 ## Schema from DSL
 
 ```bash

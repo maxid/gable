@@ -36,6 +36,8 @@
 - [x] `mcp`: client for remote servers (HTTP and stdio) with `gable mcp list/call`
 - [x] `mcp`: client for remote servers (HTTP and stdio) with `gable mcp list/call`
 - [x] `ai`: tool-calling conversation loop over `gai` (bounded rounds and history)
+- [x] `ai`: streamed answers (`Stream`/`ServeSSE`) over the same tool loop
+- [x] providers: OpenAI-compatible and Anthropic (`gai/anthropic`)
 - [ ] Low-code resources compiled to the LCDP IR
 - [x] CLI: `new`, `dev`, `version`
 - [x] CLI: `migrate` (DSL models → missing tables, `--dry-run` prints the DDL)

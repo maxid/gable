@@ -477,6 +477,37 @@ gable mcp list --command gable --arg dsl --arg mcp --arg --dir --arg ./resources
 
 `mcp call` 在工具报错时以非零码退出，脚本与人看到同一个结论。
 
+## 流式回答
+
+`ai.Service` 与非流式的 `Ask` 是同一套有界工具循环，只是把结果翻过来：
+
+```go
+stream, err := service.Stream(ctx, sessionID, "本周有多少订单？")
+defer stream.Close()
+
+for {
+    event, err := stream.Recv()
+    if err == io.EOF { break }
+    if err != nil { return err }
+    switch {
+    case event.Delta != "":      send(event.Delta)          // 边生成边发
+    case event.ToolCall != nil:  show(event.ToolCall.Name)  // “正在调用 orders.summary…”
+    case event.ToolResult != nil: show(event.ToolResult)
+    case event.Done:             return nil
+    }
+}
+```
+
+`Done` 是普通事件，下一次 `Recv` 才返回 `io.EOF`——把「最后一个事件」塞进 error 里，
+会让先判错的调用方悄悄丢掉回答的结尾。
+
+给浏览器用时 `stream.ServeSSE(w)` 会写好 `text/event-stream`、每个事件 flush、`[DONE]` 结束标记，
+并带上 `X-Accel-Buffering: no`，避免代理把回答攒到连接关闭才发。响应头发出去之后再出错，
+会以 `event: error` 帧送出，而不是被吞掉。
+
+provider 按名字选择：`openai`（OpenAI 以及所有复制该线的服务）或 `anthropic`（Messages API：
+system 在顶层、工具调用是 content block）。两边都不像的供应商应该有自己的适配器，而不是一堆开关。
+
 ## 命名空间
 
 ```yaml

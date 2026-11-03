@@ -19,7 +19,7 @@ import (
 
 // Config configures the service.
 type Config struct {
-	// Provider names the backend; only "openai" (OpenAI-compatible) exists today.
+	// Provider names the backend: "openai" (also DeepSeek, Qwen, Ollama, vLLM) or "anthropic".
 	Provider string
 	// BaseURL points at the API root, e.g. https://api.openai.com/v1.
 	BaseURL string
@@ -27,6 +27,8 @@ type Config struct {
 	APIKey string
 	// Model is the default model.
 	Model string
+	// MaxTokens caps one answer. Zero uses the provider's default (Anthropic requires one).
+	MaxTokens int
 	// SystemPrompt is prepended to every conversation.
 	SystemPrompt string
 	// MaxIterations bounds tool-call rounds. Zero uses DefaultMaxIterations: an

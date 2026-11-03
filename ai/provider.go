@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/maxid/gai"
+	"github.com/maxid/gai/anthropic"
 	"github.com/maxid/gai/openai"
 
 	"github.com/maxid/gable/rpc"
@@ -26,6 +27,18 @@ func defaultProvider(cfg Config) (gai.Provider, error) {
 			BaseURL:        cfg.BaseURL,
 			APIKey:         cfg.APIKey,
 			Model:          cfg.Model,
+			RequestTimeout: cfg.RequestTimeout,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return provider, nil
+	case "anthropic":
+		provider, err := anthropic.New(anthropic.Config{
+			BaseURL:        cfg.BaseURL,
+			APIKey:         cfg.APIKey,
+			Model:          cfg.Model,
+			MaxTokens:      cfg.MaxTokens,
 			RequestTimeout: cfg.RequestTimeout,
 		})
 		if err != nil {

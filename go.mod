@@ -11,7 +11,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/jmoiron/sqlx v1.4.0
-	github.com/maxid/gai v0.0.0-20261101085555-61e55784c8d5
+	github.com/maxid/gai v0.0.0-20261103060949-3fb21210d93c
 	github.com/maxid/gcache v0.0.0-20261031175843-f61b108fc349
 	github.com/maxid/gcosid v0.0.0-20261031112445-cbc7c57c79f7
 	github.com/maxid/glogs v0.0.0-20261029144859-382e4fa15661
