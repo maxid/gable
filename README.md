@@ -310,12 +310,26 @@ share one definition or edit resources at runtime. Both store the same normalize
 YAML, so a resource looks identical whichever store produced it.
 
 ```bash
+# what would change? (reads only; a database that was never migrated reads as empty)
+gable dsl diff --dir resources --dsn 'user:pass@tcp(127.0.0.1:3306)/app?parseTime=true' --lines
+gable dsl push --dir resources --dry-run --lines --dsn '...'   # same output, inside push
+
 # directory -> database (linted first, only changed documents are written)
 gable dsl push --dir resources --dsn 'user:pass@tcp(127.0.0.1:3306)/app?parseTime=true'
 
 # serve what the push stored, instead of the directory
 gable dsl serve --load db --dsn 'user:pass@tcp(127.0.0.1:3306)/app?parseTime=true'
+
+# audit history and roll one resource back
+gable dsl history Model/task --dsn '...'
+gable dsl restore Model/task --revision 3 --dsn '...'
 ```
+
+`diff` compares the same normalized documents `push` writes, so a dry run and the real
+write cannot disagree; resources that exist only in the database are reported as
+`removed` (nothing is deleted implicitly). `restore` writes the old document as the
+**next** revision rather than rewriting history, and does nothing when that revision is
+already current.
 
 `dsl.NewDBStore` is the library side (`Migrate`, `Load`, `Save`). Two tables back it:
 `gable_dsl_resource` (one row per `Kind/name`, with the current document and revision)

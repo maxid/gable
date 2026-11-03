@@ -31,6 +31,11 @@ All notable changes to this project will be documented in this file.
 - DSL runtime: dynamic `/dsl/data/<model>` CRUD with tenant guard, vamis
   pagination aliases and `gable dsl serve`; MCP tools over stdio
   (`gable dsl mcp`).
+- DSL diff and history: `dsl.DiffResources` compares a desired set with the stored
+  documents using the same normalization `push` writes, `gable dsl diff` and
+  `gable dsl push --dry-run` print it (a never-migrated database reads as empty),
+  `gable dsl history` lists revisions and `gable dsl restore` writes an old one as the
+  next revision instead of rewriting history.
 - DSL database store: `dsl.NewDBStore` migrates `gable_dsl_resource` and
   `gable_dsl_revision`, loads a set back from the rows and saves only the
   documents that changed, in one transaction, keeping every revision; the

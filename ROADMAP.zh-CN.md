@@ -19,7 +19,8 @@
 - [x] DSL：运行时 data API（/dsl/data/<model>），租户守卫与 vamis 参数
 - [x] DSL：MCP 工具（schema/lint/preview/apply）
 - [x] DSL：数据库 store（`NewDBStore` 的 migrate/load/save，一资源一行，每次写入进 revision 表）、`gable dsl push`、`serve --load db`
-- [ ] DSL：基于已存 revision 的 diff/dry-run、Api/Mcp kind
+- [x] DSL：基于库存储的 diff/dry-run、revision 历史与 restore
+- [ ] DSL：Api/Mcp kind
 - [x] Auth 核心：密码、JWT/opaque access、opaque refresh 轮换、bearer 中间件
 - [x] Passport 兼容 Login/refresh/logout + OAuth2 token/introspection/revocation
 - [x] OAuth2 client：authorization code + PKCE

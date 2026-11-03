@@ -206,12 +206,24 @@ gable dsl mcp --dir resources
 同一份规范化 YAML，所以同一资源不论来自哪种存储，内容都一样。
 
 ```bash
+# 先看会改什么（只读；从未迁移过的库按空库处理）
+gable dsl diff --dir resources --dsn 'user:pass@tcp(127.0.0.1:3306)/app?parseTime=true' --lines
+gable dsl push --dir resources --dry-run --lines --dsn '...'   # 输出相同，但入口在 push
+
 # 目录 -> 数据库（先 lint，只写发生变化的文档）
 gable dsl push --dir resources --dsn 'user:pass@tcp(127.0.0.1:3306)/app?parseTime=true'
 
 # 服务读取 push 写入的内容，而不是目录
 gable dsl serve --load db --dsn 'user:pass@tcp(127.0.0.1:3306)/app?parseTime=true'
+
+# 审计历史并回滚单个资源
+gable dsl history Model/task --dsn '...'
+gable dsl restore Model/task --revision 3 --dsn '...'
 ```
+
+`diff` 比较的正是 `push` 会写的那份规范化文档，所以 dry-run 与真实写入不可能得出不同结论；
+只存在于库里的资源报 `removed`（不会隐式删除）。`restore` 把旧文档写成**下一个** revision 而不是改写历史，
+若该版本已是当前内容则什么都不做。
 
 库侧接口是 `dsl.NewDBStore`（`Migrate`/`Load`/`Save`），背后两张表：
 `gable_dsl_resource`（每个 `Kind/name` 一行，存当前文档与 revision）与
