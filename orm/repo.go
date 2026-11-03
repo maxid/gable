@@ -12,11 +12,14 @@ import (
 	"github.com/maxid/gable/tenant"
 )
 
-// Repo binds a model to a database and optional id generator.
+// Repo binds a model to an executor (a database or a transaction) and optional id
+// generator. Holding the executor rather than *DB is what lets a repository run inside
+// WithTx with the same code.
 type Repo[T any] struct {
-	db    *DB
-	model *Model
-	ids   gcosid.Generator
+	exec    Executor
+	dialect Dialect
+	model   *Model
+	ids     gcosid.Generator
 }
 
 type repoOptions struct {
@@ -44,6 +47,11 @@ func NewRepo[T any](db *DB, table string, opts ...RepoOption) (*Repo[T], error) 
 	if typ.Kind() != reflect.Struct {
 		return nil, fmt.Errorf("orm: repository element must be a struct, got %s", typ)
 	}
+	return newRepo[T](db, db.Dialect(), table, opts...)
+}
+
+// newRepo binds T to any executor, so Repo and Tx share one constructor.
+func newRepo[T any](exec Executor, dialect Dialect, table string, opts ...RepoOption) (*Repo[T], error) {
 	model, err := ModelOf[T](table)
 	if err != nil {
 		return nil, err
@@ -52,7 +60,7 @@ func NewRepo[T any](db *DB, table string, opts ...RepoOption) (*Repo[T], error) 
 	for _, opt := range opts {
 		opt(&options)
 	}
-	return &Repo[T]{db: db, model: model, ids: options.ids}, nil
+	return &Repo[T]{exec: exec, dialect: dialect, model: model, ids: options.ids}, nil
 }
 
 // Model returns the table metadata.
@@ -70,8 +78,8 @@ func (r *Repo[T]) Get(ctx context.Context, id int64) (*T, error) {
 	if err != nil {
 		return nil, err
 	}
-	statement := "SELECT " + r.model.quotedColumns(r.db.dialect) + " FROM " + r.db.dialect.Quote(r.model.Table) + " WHERE " + where
-	rows, err := r.db.QueryContext(ctx, statement, args...)
+	statement := "SELECT " + r.model.quotedColumns(r.dialect) + " FROM " + r.dialect.Quote(r.model.Table) + " WHERE " + where
+	rows, err := r.exec.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +106,7 @@ func (r *Repo[T]) Create(ctx context.Context, entity *T) error {
 	}
 	value := reflect.ValueOf(entity).Elem()
 	model := r.model
-	dialect := r.db.dialect
+	dialect := r.dialect
 
 	if model.Tenant != nil {
 		current, err := tenant.MustFromContext(ctx)
@@ -153,14 +161,14 @@ func (r *Repo[T]) Create(ctx context.Context, entity *T) error {
 	if autoIncrement && dialect.Returning() {
 		statement += " RETURNING " + dialect.Quote(model.PK.Column)
 		var id int64
-		if err := r.db.QueryRowContext(ctx, statement, args...).Scan(&id); err != nil {
+		if err := r.exec.QueryRowContext(ctx, statement, args...).Scan(&id); err != nil {
 			return err
 		}
 		pk.SetInt(id)
 		return nil
 	}
 
-	result, err := r.db.ExecContext(ctx, statement, args...)
+	result, err := r.exec.ExecContext(ctx, statement, args...)
 	if err != nil {
 		return err
 	}
@@ -184,7 +192,7 @@ func (r *Repo[T]) Update(ctx context.Context, entity *T) error {
 	}
 	value := reflect.ValueOf(entity).Elem()
 	model := r.model
-	dialect := r.db.dialect
+	dialect := r.dialect
 
 	pk := value.FieldByName(model.PK.GoName)
 	if pk.Int() == 0 {
@@ -226,7 +234,7 @@ func (r *Repo[T]) Update(ctx context.Context, entity *T) error {
 	}
 	args = append(args, whereArgs...)
 	statement := "UPDATE " + dialect.Quote(model.Table) + " SET " + strings.Join(sets, ", ") + " WHERE " + where
-	return execAffected(r.db.ExecContext(ctx, statement, args...))
+	return execAffected(r.exec.ExecContext(ctx, statement, args...))
 }
 
 // Delete removes the row, or hides it when the model declares soft_delete or retain.
@@ -238,7 +246,7 @@ func (r *Repo[T]) Delete(ctx context.Context, id int64) error {
 	if model.SoftDelete == nil && model.Retain == nil {
 		return r.Purge(ctx, id)
 	}
-	dialect := r.db.dialect
+	dialect := r.dialect
 	now := time.Now()
 	var sets []string
 	var args []any
@@ -259,20 +267,20 @@ func (r *Repo[T]) Delete(ctx context.Context, id int64) error {
 	}
 	args = append(args, whereArgs...)
 	statement := "UPDATE " + dialect.Quote(model.Table) + " SET " + strings.Join(sets, ", ") + " WHERE " + where
-	return execAffected(r.db.ExecContext(ctx, statement, args...))
+	return execAffected(r.exec.ExecContext(ctx, statement, args...))
 }
 
 // Purge removes the row for good, ignoring soft_delete and retain. It is the explicit
 // escape hatch for retention jobs and for tests; ordinary code should call Delete.
 func (r *Repo[T]) Purge(ctx context.Context, id int64) error {
-	dialect := r.db.dialect
+	dialect := r.dialect
 	// Purging a hidden row is the whole point, so the guard must not select it out.
 	where, args, err := r.hiddenWhere(ctx, id, nil)
 	if err != nil {
 		return err
 	}
 	statement := "DELETE FROM " + dialect.Quote(r.model.Table) + " WHERE " + where
-	return execAffected(r.db.ExecContext(ctx, statement, args...))
+	return execAffected(r.exec.ExecContext(ctx, statement, args...))
 }
 
 // Restore clears soft_delete and retain on one row.
@@ -281,7 +289,7 @@ func (r *Repo[T]) Restore(ctx context.Context, id int64) error {
 	if model.SoftDelete == nil && model.Retain == nil {
 		return fmt.Errorf("orm: %s is not soft-deleted", model.Table)
 	}
-	dialect := r.db.dialect
+	dialect := r.dialect
 	var sets []string
 	var args []any
 	index := 1
@@ -300,7 +308,7 @@ func (r *Repo[T]) Restore(ctx context.Context, id int64) error {
 	}
 	args = append(args, whereArgs...)
 	statement := "UPDATE " + dialect.Quote(model.Table) + " SET " + strings.Join(sets, ", ") + " WHERE " + where
-	return execAffected(r.db.ExecContext(ctx, statement, args...))
+	return execAffected(r.exec.ExecContext(ctx, statement, args...))
 }
 
 func (r *Repo[T]) pkWhere(ctx context.Context, id int64) (string, []any, error) {
@@ -313,7 +321,7 @@ func (r *Repo[T]) hiddenWhere(ctx context.Context, id int64, start *int) (string
 }
 
 func (r *Repo[T]) pkWhereWith(ctx context.Context, id int64, start *int, includeHidden bool) (string, []any, error) {
-	dialect := r.db.dialect
+	dialect := r.dialect
 	index := 1
 	if start != nil {
 		index = *start

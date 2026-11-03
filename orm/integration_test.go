@@ -2,6 +2,7 @@ package orm_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -160,5 +161,93 @@ func runSoftDeleteAndPreload(t *testing.T, db *orm.DB) {
 		if item.Owner.ID != item.OwnerID {
 			t.Fatalf("item %d owner = %d, want %d", item.ID, item.Owner.ID, item.OwnerID)
 		}
+	}
+}
+
+type integrationAccount struct {
+	ID      int64  `gable:"pk,auto"`
+	Name    string `gable:"size=64,unique"`
+	Balance int64
+}
+
+// A transaction either commits all of its work or none of it, on a real engine.
+func TestIntegrationTransaction(t *testing.T) {
+	for _, target := range integrationTargets(t) {
+		t.Run(target.name, func(t *testing.T) {
+			db, err := orm.Open(target.driver, target.dsn)
+			if err != nil {
+				t.Fatalf("open: %v", err)
+			}
+			t.Cleanup(func() { _ = db.Close() })
+
+			ctx := context.Background()
+			accounts, err := orm.NewRepo[integrationAccount](db, "gable_it_accounts")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := db.AutoMigrate(accounts.Model()); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.ExecContext(ctx, "DELETE FROM "+db.Dialect().Quote("gable_it_accounts")); err != nil {
+				t.Fatal(err)
+			}
+
+			// Committed work survives.
+			if err := db.WithTx(ctx, func(ctx context.Context, tx *orm.Tx) error {
+				repo, err := tx.Repo[integrationAccount]("gable_it_accounts")
+				if err != nil {
+					return err
+				}
+				return repo.Create(ctx, &integrationAccount{Name: "alice", Balance: 100})
+			}); err != nil {
+				t.Fatalf("commit: %v", err)
+			}
+			if count, err := accounts.Query().Count(ctx); err != nil || count != 1 {
+				t.Fatalf("after commit count = %d, %v", count, err)
+			}
+
+			// A rolled-back transfer leaves no trace of the withdrawal.
+			boom := errors.New("insufficient funds")
+			err = db.WithTx(ctx, func(ctx context.Context, tx *orm.Tx) error {
+				repo, err := tx.Repo[integrationAccount]("gable_it_accounts")
+				if err != nil {
+					return err
+				}
+				row, err := repo.Query().Where(orm.Eq("name", "alice")).First(ctx)
+				if err != nil {
+					return err
+				}
+				row.Balance -= 30
+				if err := repo.Update(ctx, row); err != nil {
+					return err
+				}
+				return boom
+			})
+			if !errors.Is(err, boom) {
+				t.Fatalf("rollback err = %v", err)
+			}
+			alice, err := accounts.Query().Where(orm.Eq("name", "alice")).First(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if alice.Balance != 100 {
+				t.Fatalf("balance after rollback = %d, want 100", alice.Balance)
+			}
+
+			// The unique index proves the engine really sees the writes inside the tx.
+			err = db.WithTx(ctx, func(ctx context.Context, tx *orm.Tx) error {
+				repo, err := tx.Repo[integrationAccount]("gable_it_accounts")
+				if err != nil {
+					return err
+				}
+				return repo.Create(ctx, &integrationAccount{Name: "alice", Balance: 1})
+			})
+			if err == nil {
+				t.Fatal("a duplicate name must fail inside the transaction")
+			}
+			if count, err := accounts.Query().Count(ctx); err != nil || count != 1 {
+				t.Fatalf("after failed insert count = %d, %v", count, err)
+			}
+		})
 	}
 }

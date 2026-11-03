@@ -163,7 +163,7 @@ func (q *Query[T]) All(ctx context.Context) ([]T, error) {
 		return nil, q.err
 	}
 	model := q.repo.model
-	dialect := q.repo.db.dialect
+	dialect := q.repo.dialect
 
 	where, args, err := q.where(ctx)
 	if err != nil {
@@ -188,7 +188,7 @@ func (q *Query[T]) All(ctx context.Context) ([]T, error) {
 		statement += " " + pagination
 	}
 
-	rows, err := q.repo.db.QueryContext(ctx, statement, args...)
+	rows, err := q.repo.exec.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("orm: query %s: %w", statement, err)
 	}
@@ -232,7 +232,7 @@ func (q *Query[T]) Count(ctx context.Context) (int64, error) {
 		return 0, q.err
 	}
 	model := q.repo.model
-	dialect := q.repo.db.dialect
+	dialect := q.repo.dialect
 	where, args, err := q.where(ctx)
 	if err != nil {
 		return 0, err
@@ -242,7 +242,7 @@ func (q *Query[T]) Count(ctx context.Context) (int64, error) {
 		statement += " WHERE " + where
 	}
 	var count int64
-	if err := q.repo.db.QueryRowContext(ctx, statement, args...).Scan(&count); err != nil {
+	if err := q.repo.exec.QueryRowContext(ctx, statement, args...).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -250,7 +250,7 @@ func (q *Query[T]) Count(ctx context.Context) (int64, error) {
 
 func (q *Query[T]) where(ctx context.Context) (string, []any, error) {
 	model := q.repo.model
-	dialect := q.repo.db.dialect
+	dialect := q.repo.dialect
 	index := 1
 	var clauses []string
 	var args []any
