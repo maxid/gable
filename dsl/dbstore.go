@@ -2,6 +2,8 @@ package dsl
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -151,6 +153,12 @@ func (s *DBStore) Save(ctx context.Context, set *Set) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	return s.apply(ctx, pending)
+}
+
+// apply writes the pending documents in one transaction. Save and Restore share it, so a
+// restored revision gets the same revision numbering and history row as an ordinary save.
+func (s *DBStore) apply(ctx context.Context, pending []pending) ([]string, error) {
 	if len(pending) == 0 {
 		return nil, nil
 	}
@@ -246,7 +254,7 @@ func changedResources(set *Set, stored map[string]string) ([]pending, error) {
 func (s *DBStore) documents(ctx context.Context) (map[string]string, error) {
 	rows, err := s.db.QueryContext(ctx, s.selectSQL(s.db.Dialect()))
 	if err != nil {
-		return nil, fmt.Errorf("dsl: save: read stored documents: %w", err)
+		return nil, fmt.Errorf("dsl: read stored documents: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -254,12 +262,12 @@ func (s *DBStore) documents(ctx context.Context) (map[string]string, error) {
 	for rows.Next() {
 		var kind, name, document string
 		if err := rows.Scan(&kind, &name, &document); err != nil {
-			return nil, fmt.Errorf("dsl: save: read stored documents: %w", err)
+			return nil, fmt.Errorf("dsl: read stored documents: %w", err)
 		}
 		stored[resourceKey(Kind(kind), name)] = document
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("dsl: save: read stored documents: %w", err)
+		return nil, fmt.Errorf("dsl: read stored documents: %w", err)
 	}
 	return stored, nil
 }
@@ -343,4 +351,134 @@ func placeholders(dialect orm.Dialect, count int) string {
 		parts = append(parts, dialect.Placeholder(index))
 	}
 	return strings.Join(parts, ", ")
+}
+
+// Diff compares a desired set with what the database currently stores, without writing
+// anything. It is what `gable dsl push --dry-run` prints.
+//
+// A store that was never migrated holds nothing, which is exactly what a first diff must
+// report — so a missing table reads as an empty store instead of an error. The check is
+// an information_schema lookup rather than error sniffing, so a real failure still
+// surfaces as one.
+func (s *DBStore) Diff(ctx context.Context, set *Set) (Diff, error) {
+	exists, err := s.resourceTableExists(ctx)
+	if err != nil {
+		return Diff{}, err
+	}
+	stored := map[string]string{}
+	if exists {
+		stored, err = s.documents(ctx)
+		if err != nil {
+			return Diff{}, err
+		}
+	}
+	return DiffResources(set, stored)
+}
+
+// resourceTableExists asks information_schema, which both supported dialects implement;
+// current_schema() is the PostgreSQL spelling of MySQL's DATABASE().
+func (s *DBStore) resourceTableExists(ctx context.Context) (bool, error) {
+	dialect := s.db.Dialect()
+	current := "DATABASE()"
+	if dialect.Name() == "postgres" {
+		current = "current_schema()"
+	}
+	statement := "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = " + current +
+		" AND table_name = " + dialect.Placeholder(1)
+	var count int64
+	if err := s.db.QueryRowContext(ctx, statement, s.table).Scan(&count); err != nil {
+		return false, fmt.Errorf("dsl: check table %s: %w", s.table, err)
+	}
+	return count > 0, nil
+}
+
+// Revision is one historical version of a resource.
+type Revision struct {
+	Kind      Kind      `json:"kind"`
+	Name      string    `json:"name"`
+	Revision  int64     `json:"revision"`
+	Document  string    `json:"document"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// History reads the stored revisions of one resource, newest first.
+//
+// History is append-only: restoring an old revision writes a new one instead of deleting
+// anything, so "what did it look like yesterday" stays answerable after a rollback.
+func (s *DBStore) History(ctx context.Context, kind Kind, name string) ([]Revision, error) {
+	quote := s.db.Dialect().Quote
+	statement := "SELECT " + quote("revision") + ", " + quote("document") + ", " + quote("created_at") +
+		" FROM " + quote(s.revisions) +
+		" WHERE " + quote("kind") + " = " + s.db.Dialect().Placeholder(1) +
+		" AND " + quote("name") + " = " + s.db.Dialect().Placeholder(2) +
+		" ORDER BY " + quote("revision") + " DESC"
+	rows, err := s.db.QueryContext(ctx, statement, string(kind), name)
+	if err != nil {
+		return nil, fmt.Errorf("dsl: history %s: %w", resourceKey(kind, name), err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var revisions []Revision
+	for rows.Next() {
+		var revision Revision
+		if err := rows.Scan(&revision.Revision, &revision.Document, &revision.CreatedAt); err != nil {
+			return nil, fmt.Errorf("dsl: history %s: %w", resourceKey(kind, name), err)
+		}
+		revision.Kind = Kind(kind)
+		revision.Name = name
+		revisions = append(revisions, revision)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("dsl: history %s: %w", resourceKey(kind, name), err)
+	}
+	return revisions, nil
+}
+
+// Restore writes a historical revision back as the current document.
+//
+// The stored document was accepted when it was written, and re-linting a single
+// historical resource out of its set could reject a table whose model lives elsewhere, so
+// the document is restored as-is. The restore itself becomes the next revision.
+func (s *DBStore) Restore(ctx context.Context, kind Kind, name string, revision int64) (string, error) {
+	quote := s.db.Dialect().Quote
+	statement := "SELECT " + quote("document") + " FROM " + quote(s.revisions) +
+		" WHERE " + quote("kind") + " = " + s.db.Dialect().Placeholder(1) +
+		" AND " + quote("name") + " = " + s.db.Dialect().Placeholder(2) +
+		" AND " + quote("revision") + " = " + s.db.Dialect().Placeholder(3)
+	var document string
+	if err := s.db.QueryRowContext(ctx, statement, string(kind), name, revision).Scan(&document); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", fmt.Errorf("dsl: %s has no revision %d", resourceKey(kind, name), revision)
+		}
+		return "", fmt.Errorf("dsl: restore %s: %w", resourceKey(kind, name), err)
+	}
+	loaded, issues := LoadBytes(resourceKey(kind, name), []byte(document))
+	if len(issues) > 0 {
+		return "", fmt.Errorf("dsl: restore %s: stored revision %d does not parse: %w", resourceKey(kind, name), revision, issues)
+	}
+	if _, ok := loaded.Resource(kind, name); !ok {
+		return "", fmt.Errorf("dsl: restore %s: revision %d declares %s", resourceKey(kind, name), revision, declaredResource(loaded))
+	}
+
+	// Restoring the revision that is already current writes nothing, the same rule Save
+	// follows: an action that changes no document must not add a revision row.
+	stored, err := s.documents(ctx)
+	if err != nil {
+		return "", err
+	}
+	if current, ok := stored[resourceKey(kind, name)]; ok && current == document {
+		return "", nil
+	}
+
+	written, err := s.apply(ctx, []pending{{
+		resource: resource{Kind: kind, Name: name},
+		Document: document,
+	}})
+	if err != nil {
+		return "", err
+	}
+	if len(written) == 0 {
+		return "", nil
+	}
+	return written[0], nil
 }
