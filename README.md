@@ -303,11 +303,55 @@ gable dsl preview Page/task.page --dir resources --format yaml
 gable dsl apply --dir resources --out .gable/dsl
 ```
 
-The first slice covers `Model`, `Table`, `Form` and `Page`:
+The first slice covers `Model`, `Table`, `Form` and `Page`; `Api` and `Mcp` bind actions
+and tools to Go handlers you register, by name:
 
 - `Model` → normalized fields plus a `CREATE TABLE` statement.
 - `Table`/`Form` → `lcdp.ir/v1` `TableDef`/`FormDef`.
 - `Page` → a `UiPage` widget tree for vamis.
+
+```yaml
+# Api: one action, bound to a registered handler, behind declared guards
+apiVersion: gable/v1
+kind: Api
+metadata: {name: task.close, title: Close a task}
+spec:
+  handler: tasks.close     # a name, never a package or a file
+  model: task
+  method: POST
+  path: task/{id}/close
+  guards: [tenant]
+  audit: true
+---
+# Mcp: the metadata a model reads, for a handler that stays in Go
+apiVersion: gable/v1
+kind: Mcp
+metadata: {name: tasks.search}
+spec:
+  handler: tasks.search
+  description: Find tasks by title.
+  params:
+    type: object
+    properties: {q: {type: string}}
+    required: [q]
+```
+
+```go
+registry := dsl.NewRegistry().
+    AddGuard("tenant", requireTenant).
+    API("tasks.close", closeTask).
+    Tool("tasks.search", searchTasks)
+
+bindings, err := registry.Routes(set, server.Router(), "/dsl/api") // POST /dsl/api/task/{id}/close
+tools, err := registry.Tools(set, mcpServer)                        // tasks.search
+```
+
+A resource never names Go code, only a symbolic handler name, so the "no arbitrary code in
+resources" rule still holds while a low-code page can call real business logic. A name that
+was never registered — handler or guard — fails binding instead of producing a route that
+500s in production or, worse, runs unguarded. Guards run in the order the resource declares
+them, so `[tenant, role]` means the role check sees a tenant. Routes are written in OpenAPI
+syntax (`{id}`) and registered with Gin's (`:id`) by the router.
 
 `apply` validates, writes normalized resources and is idempotent. The runtime
 data API and MCP tools are available too:

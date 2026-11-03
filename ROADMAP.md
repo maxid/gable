@@ -19,7 +19,7 @@
 - [x] DSL: MCP tools (schema/lint/preview/apply)
 - [x] DSL: database store (`NewDBStore`: migrate/load/save, one row per resource, every write kept in a revision table), `gable dsl push`, `serve --load db`
 - [x] DSL: diff/dry-run, revision history and restore over the database store
-- [ ] DSL: Api/Mcp kinds
+- [x] DSL: Api/Mcp kinds (bind actions and tools to registered Go handlers, named guards, bind-time validation)
 - [x] Auth core: password, JWT/opaque access, opaque refresh rotation, bearer middleware
 - [x] Passport-compatible Login/refresh/logout + OAuth2 token/introspection/revocation endpoints
 - [x] OAuth2 client: authorization code + PKCE

@@ -200,11 +200,52 @@ gable dsl preview Page/task.page --dir resources --format yaml
 gable dsl apply --dir resources --out .gable/dsl
 ```
 
-首刀覆盖 `Model`、`Table`、`Form`、`Page`：
+首刀覆盖 `Model`、`Table`、`Form`、`Page`；`Api` 与 `Mcp` 则把动作与工具按**名字**绑到你注册的 Go handler 上：
 
 - `Model` → 规范化字段 + `CREATE TABLE`。
 - `Table`/`Form` → `lcdp.ir/v1` 的 `TableDef`/`FormDef`。
 - `Page` → vamis 可直接渲染的 `UiPage` widget 树。
+
+```yaml
+# Api：一个动作，绑定已注册的 handler，并声明所需守卫
+apiVersion: gable/v1
+kind: Api
+metadata: {name: task.close, title: 关闭任务}
+spec:
+  handler: tasks.close     # 只是一个名字，绝不是包名或文件路径
+  model: task
+  method: POST
+  path: task/{id}/close
+  guards: [tenant]
+  audit: true
+---
+# Mcp：模型看到的那部分元数据，实现仍在 Go
+apiVersion: gable/v1
+kind: Mcp
+metadata: {name: tasks.search}
+spec:
+  handler: tasks.search
+  description: 按标题搜索任务。
+  params:
+    type: object
+    properties: {q: {type: string}}
+    required: [q]
+```
+
+```go
+registry := dsl.NewRegistry().
+    AddGuard("tenant", requireTenant).
+    API("tasks.close", closeTask).
+    Tool("tasks.search", searchTasks)
+
+bindings, err := registry.Routes(set, server.Router(), "/dsl/api") // POST /dsl/api/task/{id}/close
+tools, err := registry.Tools(set, mcpServer)                        // tasks.search
+```
+
+资源里永远不写 Go 代码，只有符号化的 handler 名，所以「资源里没有任意代码」这条规则仍然成立，
+同时低代码页面又能调到真实业务逻辑。名字没注册过——handler 或 guard——会在绑定期直接失败，
+而不是生成一条生产上 500 的路由，或更糟：无守卫地跑。守卫按资源声明顺序执行，所以 `[tenant, role]`
+意味着角色检查能看到租户。路由用 OpenAPI 写法（`{id}`），由 router 注册成 Gin 的 `:id`。
 
 `apply` 先校验、再写规范化资源，幂等。运行时数据 API 与 MCP 工具也已可用：
 

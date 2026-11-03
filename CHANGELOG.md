@@ -58,6 +58,11 @@ All notable changes to this project will be documented in this file.
 - DSL runtime: dynamic `/dsl/data/<model>` CRUD with tenant guard, vamis
   pagination aliases and `gable dsl serve`; MCP tools over stdio
   (`gable dsl mcp`).
+- DSL `Api` and `Mcp` kinds: an Api binds one action to a handler registered with
+  `dsl.NewRegistry().API(name, fn)`, behind guards registered by name; an Mcp declares the
+  metadata a model reads for a registered tool handler. A name that was never registered —
+  handler or guard — fails binding instead of producing an unguarded route. Routes are
+  written in OpenAPI syntax (`{id}`) and registered with Gin's spelling by the router.
 - DSL diff and history: `dsl.DiffResources` compares a desired set with the stored
   documents using the same normalization `push` writes, `gable dsl diff` and
   `gable dsl push --dry-run` print it (a never-migrated database reads as empty),
