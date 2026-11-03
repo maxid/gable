@@ -11,6 +11,10 @@ All notable changes to this project will be documented in this file.
   signatures are unchanged (`gable.Module` is `gplugin.Module[*Container]` plus the
   optional lifecycle).
 
+- OpenAPI: `Route.Extension(name, value)` attaches a vendor extension (`x-...`) to an
+  operation, flattened into the operation object; a name without the prefix panics at
+  wiring time. Routes may be written with OpenAPI's `{id}` and are translated to Gin's
+  spelling on registration.
 - Configuration hot reload: `config.Watch` loads, validates and then watches the
   directory (editors and ConfigMap updates replace the file), collapses a write burst
   into one reload, keeps the last good config when the new file is invalid, and refuses a

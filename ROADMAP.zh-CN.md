@@ -7,7 +7,8 @@
 - [x] `glogs` logger
 - [x] 稳定错误码
 - [x] Web MVC、绑定/校验、响应包络
-- [x] springdoc 形状的 OpenAPI 3.0.1 与 Swagger UI
+- [x] springdoc 形状的 OpenAPI 3.0.1、Swagger UI 与按 operation 的 `x-...` vendor extension
+- [ ] 与 Java 样例的 springdoc golden 对照（阻塞：需 Java 后端环境）
 - [x] Namespace：gable 前缀配置、gns context/Store SPI、gcache Store 适配器
 - [x] Tenant：single/saas、Host 登录规则、fail-closed 作用域、代入
 - [x] ORM 核心：模型、查询构造器、CRUD、租户守卫、gcosid 主键、AutoMigrate（MySQL/PostgreSQL）

@@ -101,6 +101,17 @@ app.Register(web.NewModule(server, "")) // 监听 config.http.addr
 `GET /v3/api-docs` 输出 OpenAPI，`GET /v3/api-docs/{group}` 输出分组，
 `GET /swagger-ui/index.html` 打开 Swagger UI。
 
+操作可以挂 vendor extension，网关提示或 springdoc 风格的标记就是这样进文档的：
+
+```go
+router.GET("/items", listItems).Doc("列出条目").
+    Extension("x-springdoc-paginated", true)
+```
+
+名字必须以 `x-` 开头——否则在接线期直接 panic，而不是被工具丢弃、或被渲染成 operation schema 的字段。
+扩展是**平铺**进 operation 对象的（不会嵌在 `extensions` 键下），没有扩展的操作渲染结果与以前完全相同。
+路由可以用 OpenAPI 的 `{id}` 写法，注册时翻译成 Gin 的 `:id`，文档保留规范写法。
+
 ## 多租户
 
 ```go

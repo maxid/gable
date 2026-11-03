@@ -194,6 +194,20 @@ app.Register(web.NewModule(server, "")) // listens on config.http.addr
 `GET /v3/api-docs` serves the OpenAPI document, `GET /v3/api-docs/{group}` a
 group, and `GET /swagger-ui/index.html` the UI.
 
+An operation can carry vendor extensions, which is how a gateway hint or a springdoc-style
+flag reaches the document:
+
+```go
+router.GET("/items", listItems).Doc("list items").
+    Extension("x-springdoc-paginated", true)
+```
+
+The name must start with `x-` — anything else panics at wiring time rather than being dropped
+or, worse, rendered as a field of the operation schema. Extensions are flattened into the
+operation object (not nested under an `extensions` key), and an operation without any renders
+exactly as before. Routes can be written with OpenAPI's `{id}` and are translated to Gin's
+`:id` on registration, so the document keeps the specification's spelling.
+
 ## Multi-tenancy
 
 ```go

@@ -6,7 +6,8 @@
 - [x] `glogs` logger
 - [x] Stable error codes
 - [x] Web MVC, binding/validation, response envelope
-- [x] springdoc-shaped OpenAPI 3.0.1 and Swagger UI
+- [x] springdoc-shaped OpenAPI 3.0.1, Swagger UI and `x-...` vendor extensions per operation
+- [ ] springdoc golden comparison against a Java sample (blocked: needs the Java backend)
 - [x] Namespace: gable prefix config, gns context/Store SPI, gcache-backed Store adapter
 - [x] Tenant: single/saas modes, host login rules, fail-closed scope, impersonation
 - [x] ORM core: models, query builder, CRUD, tenant guard, gcosid keys, AutoMigrate (MySQL/PostgreSQL)
