@@ -15,6 +15,8 @@ import (
 	"github.com/maxid/glogs"
 
 	gableerrors "github.com/maxid/gable/errors"
+	"github.com/maxid/gable/health"
+	"github.com/maxid/gable/metrics"
 )
 
 type options struct {
@@ -29,6 +31,8 @@ type options struct {
 	docs           bool
 	docsPath       string
 	logger         *glogs.Logger
+	health         HealthReporter
+	metrics        *metrics.Registry
 }
 
 // Option configures a Server.
@@ -96,6 +100,7 @@ type Server struct {
 	engine *gin.Engine
 	router *Router
 	opts   options
+	health HealthReporter
 
 	mu         sync.RWMutex
 	routes     []*Route
@@ -122,7 +127,7 @@ func New(opts ...Option) *Server {
 	}
 
 	engine := gin.New()
-	server := &Server{engine: engine, opts: o, logger: o.logger}
+	server := &Server{engine: engine, opts: o, logger: o.logger, health: o.health}
 	server.router = &Router{server: server, group: &engine.RouterGroup, docGroup: "default"}
 
 	engine.Use(server.requestIDMiddleware(), server.recoveryMiddleware(), server.accessLogMiddleware())
@@ -130,7 +135,58 @@ func New(opts ...Option) *Server {
 		server.writeError(&Context{gin: c, server: server}, gableerrors.New(gableerrors.CodeNotFound, "not found").WithStatus(http.StatusNotFound))
 	})
 	server.registerDocs()
+	server.registerObservability()
 	return server
+}
+
+// HealthReporter is what the health endpoints ask. health.Registry implements it, and so
+// does any application that keeps its own probe list.
+type HealthReporter interface {
+	Live(ctx context.Context) health.Report
+	Ready(ctx context.Context) health.Report
+}
+
+// WithHealth mounts /healthz and /readyz for the reporter. Liveness answers 200 unless the
+// process is shutting down; readiness answers 503 while any critical check fails, which is
+// what takes an instance out of a load balancer without restarting it.
+func WithHealth(reporter HealthReporter) Option {
+	return func(o *options) { o.health = reporter }
+}
+
+// WithMetrics mounts /metrics and records request count, in-flight requests and latency
+// for every request the server handles.
+func WithMetrics(registry *metrics.Registry) Option {
+	return func(o *options) {
+		if registry != nil {
+			o.metrics = registry
+		}
+	}
+}
+
+// registerObservability mounts the health and metrics endpoints. They are outside the
+// envelope: an orchestrator and a scraper read plain status codes and text, not the
+// application's JSON contract.
+func (s *Server) registerObservability() {
+	if s.opts.health != nil {
+		s.engine.GET("/healthz", func(c *gin.Context) {
+			report := s.opts.health.Live(c.Request.Context())
+			c.JSON(statusFor(report), report)
+		})
+		s.engine.GET("/readyz", func(c *gin.Context) {
+			report := s.opts.health.Ready(c.Request.Context())
+			c.JSON(statusFor(report), report)
+		})
+	}
+	if s.opts.metrics != nil {
+		s.engine.GET("/metrics", gin.WrapH(s.opts.metrics.Handler()))
+	}
+}
+
+func statusFor(report health.Report) int {
+	if report.OK() {
+		return http.StatusOK
+	}
+	return http.StatusServiceUnavailable
 }
 
 // Use adds gin middleware to the server. Call it before registering the routes

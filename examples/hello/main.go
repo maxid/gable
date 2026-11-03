@@ -35,15 +35,22 @@ func main() {
 		log.Fatal(err)
 	}
 
+	app := gable.New(gable.WithConfig(cfg))
+
+	// One registry for probes, one for metrics: the App owns them, modules add to them,
+	// and the server mounts them at /healthz, /readyz and /metrics.
+	app.Health().Add("database", true, func(context.Context) error { return nil }) // replace with a real ping
+
 	server := web.New(
 		web.WithTitle("hello"),
 		web.WithVersion(gable.Version),
 		web.WithDescription("gable example application"),
+		web.WithHealth(app.Health()),
+		web.WithMetrics(app.Metrics()),
 	)
 	server.UseTenant(tenant.NewSingleResolver(cfg.Tenant))
 	server.Register(helloController{})
 
-	app := gable.New(gable.WithConfig(cfg))
 	if err := app.Register(web.NewModule(server, "")); err != nil {
 		log.Fatal(err)
 	}

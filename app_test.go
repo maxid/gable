@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/maxid/gable/config"
 )
@@ -191,5 +192,44 @@ func TestAppManifestReportsStartOrder(t *testing.T) {
 	}
 	if manifest[1].DependsOn[0] != "log" {
 		t.Fatalf("manifest dependencies = %v", manifest[1].DependsOn)
+	}
+}
+
+// Reading the manifest from inside Start used to re-enter the App lock; this is the
+// regression test for that deadlock.
+func TestStartReportsCapabilityCountWithoutDeadlock(t *testing.T) {
+	app := New()
+	var events []string
+	if err := app.Register(&testModule{id: "alpha", events: &events}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Register(&testModule{id: "beta", deps: []string{"alpha"}, events: &events}); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- app.Start(context.Background()) }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Start blocked")
+	}
+	t.Cleanup(func() { _ = app.Stop(context.Background()) })
+
+	if text := app.Metrics().Render(); !strings.Contains(text, "gable_capabilities 2") {
+		t.Fatalf("metrics =\n%s", text)
+	}
+	// A started application is ready; a stopped one is not.
+	if !app.Health().Ready(context.Background()).OK() {
+		t.Fatal("a started app must be ready")
+	}
+	if err := app.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if app.Health().Ready(context.Background()).OK() {
+		t.Fatal("a stopped app must not be ready")
 	}
 }

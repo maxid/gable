@@ -11,7 +11,9 @@ import (
 	"github.com/maxid/gplugin"
 
 	"github.com/maxid/gable/config"
+	"github.com/maxid/gable/health"
 	gablelog "github.com/maxid/gable/log"
+	"github.com/maxid/gable/metrics"
 )
 
 // DefaultStopTimeout bounds Run's shutdown when the caller's context ends.
@@ -36,6 +38,11 @@ type App struct {
 	set      *gplugin.Set[*Container]
 	assembly *gplugin.Assembly[*Container]
 	running  bool
+
+	// health and metrics are process-wide: one probe list, one scrape target. Modules add
+	// to them during Register, so the wiring decides what an orchestrator can see.
+	health  *health.Registry
+	metrics *metrics.Registry
 }
 
 // New returns an application with development defaults.
@@ -44,6 +51,8 @@ func New(opts ...Option) *App {
 		cfg:       config.Default(),
 		container: NewContainer(),
 		set:       gplugin.NewSet[*Container](),
+		health:    health.New(),
+		metrics:   metrics.New(),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -103,6 +112,27 @@ func (a *App) Manifest() []gplugin.Entry {
 // Container returns the application container.
 func (a *App) Container() *Container { return a.container }
 
+// Health returns the process-wide probe registry. Modules add checks to it; an HTTP
+// server mounts it with web.WithHealth.
+func (a *App) Health() *health.Registry {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.health == nil {
+		a.health = health.New()
+	}
+	return a.health
+}
+
+// Metrics returns the process-wide metric registry, mounted with web.WithMetrics.
+func (a *App) Metrics() *metrics.Registry {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.metrics == nil {
+		a.metrics = metrics.New()
+	}
+	return a.metrics
+}
+
 // Config returns the active configuration.
 func (a *App) Config() *config.Config { return a.cfg }
 
@@ -144,6 +174,8 @@ func (a *App) Start(ctx context.Context) error {
 	a.container.Set("gable.config", a.cfg)
 	a.container.Set("gable.logger", a.logger)
 	a.container.Set("gable.namespace", a.namespace)
+	a.container.Set("gable.health", a.health)
+	a.container.Set("gable.metrics", a.metrics)
 
 	// Ordering, registration and lifecycle are gplugin's assembly layer: it resolves
 	// the dependency closure, sorts it deterministically and rolls back the modules it
@@ -163,6 +195,16 @@ func (a *App) Start(ctx context.Context) error {
 	}
 
 	a.running = true
+	// Only now may the process take traffic: a load balancer that probes /readyz during
+	// wiring must not see a half-registered application.
+	a.health.SetStarted(true)
+	// Start holds a.mu, so the manifest is read from the assembly directly: re-entering
+	// the accessor would deadlock.
+	enabled := 0
+	if a.assembly != nil {
+		enabled = len(a.assembly.Manifest())
+	}
+	a.metrics.Gauge("gable_capabilities", "Capabilities enabled in this binary.").Set(float64(enabled))
 	return nil
 }
 
@@ -191,6 +233,9 @@ func (a *App) Stop(ctx context.Context) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	// Stop accepting traffic before anything is torn down, so a probe during shutdown
+	// fails fast instead of hitting a half-closed server.
+	a.health.SetStarted(false)
 	var err error
 	if a.assembly != nil {
 		if stopErr := a.assembly.Stop(ctx); stopErr != nil {
@@ -199,6 +244,7 @@ func (a *App) Stop(ctx context.Context) error {
 		a.assembly = nil
 	}
 	a.running = false
+	a.metrics.Gauge("gable_capabilities", "Capabilities enabled in this binary.").Set(0)
 	a.closeLogger()
 	return err
 }

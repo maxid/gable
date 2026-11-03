@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,8 @@ import (
 	"github.com/maxid/gable"
 	"github.com/maxid/gable/config"
 	gableerrors "github.com/maxid/gable/errors"
+	"github.com/maxid/gable/health"
+	"github.com/maxid/gable/metrics"
 	"github.com/maxid/gable/tenant"
 )
 
@@ -350,5 +353,73 @@ func TestTenantMiddleware(t *testing.T) {
 	data, _ := envelope.Data.(map[string]any)
 	if data["code"] != "management" {
 		t.Fatalf("tenant data = %+v", envelope.Data)
+	}
+}
+
+// The orchestrator endpoints are plain status codes and text, outside the JSON envelope:
+// a probe must not depend on the application's response contract.
+func TestHealthAndMetricsEndpoints(t *testing.T) {
+	registry := health.New()
+	registry.SetStarted(true)
+	healthy := true
+	registry.Add("database", true, func(context.Context) error {
+		if healthy {
+			return nil
+		}
+		return errors.New("connection refused")
+	})
+	metricsRegistry := metrics.New()
+
+	server := New(WithTitle("obs"), WithHealth(registry), WithMetrics(metricsRegistry))
+	server.Router().GET("/hello", func(ctx *Context) error {
+		return ctx.JSON(200, map[string]string{"hello": "world"})
+	}).Doc("hello")
+
+	probe := func(path string) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		server.Handler().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		return recorder
+	}
+
+	if recorder := probe("/healthz"); recorder.Code != http.StatusOK {
+		t.Fatalf("healthz = %d", recorder.Code)
+	}
+	ready := probe("/readyz")
+	if ready.Code != http.StatusOK {
+		t.Fatalf("readyz = %d: %s", ready.Code, ready.Body.String())
+	}
+	var report health.Report
+	if err := json.Unmarshal(ready.Body.Bytes(), &report); err != nil {
+		t.Fatal(err)
+	}
+	if !report.OK() || len(report.Checks) != 1 || report.Checks[0].Name != "database" {
+		t.Fatalf("report = %+v", report)
+	}
+
+	healthy = false
+	if recorder := probe("/readyz"); recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("readyz with a failing check = %d", recorder.Code)
+	}
+	if recorder := probe("/healthz"); recorder.Code != http.StatusOK {
+		t.Fatalf("healthz with a failing check = %d, liveness must not follow a dependency", recorder.Code)
+	}
+
+	// A request is counted and timed; the route label is the pattern, not the path.
+	probe("/hello")
+	probe("/hello")
+	scraped := probe("/metrics")
+	if scraped.Code != http.StatusOK {
+		t.Fatalf("metrics = %d", scraped.Code)
+	}
+	for _, want := range []string{
+		`http_requests_total{method="GET",route="/hello",status="200"} 2`,
+		`http_request_duration_seconds_count{method="GET",route="/hello"} 2`,
+	} {
+		if !strings.Contains(scraped.Body.String(), want) {
+			t.Fatalf("metrics missing %q:\n%s", want, scraped.Body.String())
+		}
+	}
+	if strings.Contains(scraped.Body.String(), "/hello/123") {
+		t.Fatal("metrics must not label by path")
 	}
 }
