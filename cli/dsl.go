@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
+	"time"
 
 	"github.com/maxid/gcosid"
 	"github.com/maxid/gmcp"
@@ -25,7 +27,11 @@ func newDSLCommand() *cobra.Command {
 		Use:   "dsl",
 		Short: "lint, preview and apply gable DSL resources",
 	}
-	cmd.AddCommand(newDSLLintCommand(), newDSLPreviewCommand(), newDSLApplyCommand(), newDSLPushCommand(), newDSLMCPCommand(), newDSLServeCommand())
+	cmd.AddCommand(
+		newDSLLintCommand(), newDSLPreviewCommand(), newDSLApplyCommand(),
+		newDSLDiffCommand(), newDSLPushCommand(), newDSLHistoryCommand(), newDSLRestoreCommand(),
+		newDSLMCPCommand(), newDSLServeCommand(),
+	)
 	return cmd
 }
 
@@ -208,8 +214,84 @@ func loadDSLSet(ctx context.Context, dir, mode string, db *orm.DB, table, revisi
 	return service.Set(), nil
 }
 
+// dslDirStore loads a directory the way every write command does: lint first, because a
+// set that does not lint must not reach the database.
+func dslDirStore(dir string) (*dsl.Service, error) {
+	service, err := dsl.NewService(dir)
+	if err != nil {
+		return nil, err
+	}
+	if issues := service.Lint(); len(issues) > 0 {
+		return nil, issues
+	}
+	return service, nil
+}
+
+// printDiff writes the resource-level changes, with line detail for the ones that moved.
+func printDiff(w io.Writer, diff dsl.Diff, withLines bool) {
+	if diff.Empty() {
+		fmt.Fprintln(w, "no changes")
+		return
+	}
+	for _, change := range diff.Changes {
+		fmt.Fprintf(w, "%-7s %s\n", change.Action, change.Key())
+		if !withLines || change.Action != dsl.ChangeChanged {
+			continue
+		}
+		for _, line := range change.Lines {
+			if line.Op == " " {
+				continue
+			}
+			fmt.Fprintf(w, "  %s %s\n", line.Op, line.Text)
+		}
+	}
+	fmt.Fprintf(w, "%s\n", diff)
+}
+
+func newDSLDiffCommand() *cobra.Command {
+	var dir, driver, dsn, table, revisions string
+	var lines bool
+	cmd := &cobra.Command{
+		Use:   "diff",
+		Short: "show what `push` would change, without writing",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if dsn == "" {
+				return fmt.Errorf("dsl: --dsn is required (mysql or postgres)")
+			}
+			service, err := dslDirStore(dir)
+			if err != nil {
+				return err
+			}
+			db, err := openDSLDB(driver, dsn)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+			store, err := dsl.NewDBStore(db, dbStoreOptions(table, revisions)...)
+			if err != nil {
+				return err
+			}
+			diff, err := store.Diff(cmd.Context(), service.Set())
+			if err != nil {
+				return err
+			}
+			printDiff(cmd.OutOrStdout(), diff, lines)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&dir, "dir", ".", "DSL directory")
+	cmd.Flags().StringVar(&driver, "driver", "mysql", "mysql | postgres")
+	cmd.Flags().StringVar(&dsn, "dsn", "", "database DSN")
+	cmd.Flags().StringVar(&table, "table", dsl.DefaultResourceTable, "resource table name")
+	cmd.Flags().StringVar(&revisions, "revisions-table", dsl.DefaultRevisionTable, "revision history table name")
+	cmd.Flags().BoolVar(&lines, "lines", false, "print the changed lines, not just the resource keys")
+	return cmd
+}
+
 func newDSLPushCommand() *cobra.Command {
 	var dir, driver, dsn, table, revisions string
+	var dryRun, lines bool
 	cmd := &cobra.Command{
 		Use:   "push",
 		Short: "write a validated DSL directory to the database store",
@@ -218,12 +300,9 @@ func newDSLPushCommand() *cobra.Command {
 			if dsn == "" {
 				return fmt.Errorf("dsl: --dsn is required (mysql or postgres)")
 			}
-			service, err := dsl.NewService(dir)
+			service, err := dslDirStore(dir)
 			if err != nil {
 				return err
-			}
-			if issues := service.Lint(); len(issues) > 0 {
-				return issues
 			}
 
 			db, err := openDSLDB(driver, dsn)
@@ -235,6 +314,14 @@ func newDSLPushCommand() *cobra.Command {
 			store, err := dsl.NewDBStore(db, dbStoreOptions(table, revisions)...)
 			if err != nil {
 				return err
+			}
+			if dryRun {
+				diff, err := store.Diff(cmd.Context(), service.Set())
+				if err != nil {
+					return err
+				}
+				printDiff(cmd.OutOrStdout(), diff, lines)
+				return nil
 			}
 			if err := store.Migrate(cmd.Context()); err != nil {
 				return err
@@ -258,6 +345,100 @@ func newDSLPushCommand() *cobra.Command {
 	cmd.Flags().StringVar(&dsn, "dsn", "", "database DSN")
 	cmd.Flags().StringVar(&table, "table", dsl.DefaultResourceTable, "resource table name")
 	cmd.Flags().StringVar(&revisions, "revisions-table", dsl.DefaultRevisionTable, "revision history table name")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print the changes instead of writing them")
+	cmd.Flags().BoolVar(&lines, "lines", false, "with --dry-run, print the changed lines too")
+	return cmd
+}
+
+func newDSLHistoryCommand() *cobra.Command {
+	var driver, dsn, table, revisions string
+	cmd := &cobra.Command{
+		Use:   "history <Kind>/<name>",
+		Short: "list the stored revisions of one resource, newest first",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if dsn == "" {
+				return fmt.Errorf("dsl: --dsn is required (mysql or postgres)")
+			}
+			kind, name, err := splitResource(args[0])
+			if err != nil {
+				return err
+			}
+			db, err := openDSLDB(driver, dsn)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+			store, err := dsl.NewDBStore(db, dbStoreOptions(table, revisions)...)
+			if err != nil {
+				return err
+			}
+			history, err := store.History(cmd.Context(), kind, name)
+			if err != nil {
+				return err
+			}
+			if len(history) == 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), "no revisions")
+				return nil
+			}
+			for _, revision := range history {
+				fmt.Fprintf(cmd.OutOrStdout(), "r%d  %s  %d bytes\n",
+					revision.Revision, revision.CreatedAt.Format(time.RFC3339), len(revision.Document))
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&driver, "driver", "mysql", "mysql | postgres")
+	cmd.Flags().StringVar(&dsn, "dsn", "", "database DSN")
+	cmd.Flags().StringVar(&table, "table", dsl.DefaultResourceTable, "resource table name")
+	cmd.Flags().StringVar(&revisions, "revisions-table", dsl.DefaultRevisionTable, "revision history table name")
+	return cmd
+}
+
+func newDSLRestoreCommand() *cobra.Command {
+	var driver, dsn, table, revisions string
+	var revision int64
+	cmd := &cobra.Command{
+		Use:   "restore <Kind>/<name>",
+		Short: "write a stored revision back as the next revision",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if dsn == "" {
+				return fmt.Errorf("dsl: --dsn is required (mysql or postgres)")
+			}
+			if revision <= 0 {
+				return fmt.Errorf("dsl: --revision is required")
+			}
+			kind, name, err := splitResource(args[0])
+			if err != nil {
+				return err
+			}
+			db, err := openDSLDB(driver, dsn)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+			store, err := dsl.NewDBStore(db, dbStoreOptions(table, revisions)...)
+			if err != nil {
+				return err
+			}
+			key, err := store.Restore(cmd.Context(), kind, name, revision)
+			if err != nil {
+				return err
+			}
+			if key == "" {
+				fmt.Fprintln(cmd.OutOrStdout(), "no changes")
+				return nil
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), "restored", key, "from revision", revision)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&driver, "driver", "mysql", "mysql | postgres")
+	cmd.Flags().StringVar(&dsn, "dsn", "", "database DSN")
+	cmd.Flags().StringVar(&table, "table", dsl.DefaultResourceTable, "resource table name")
+	cmd.Flags().StringVar(&revisions, "revisions-table", dsl.DefaultRevisionTable, "revision history table name")
+	cmd.Flags().Int64Var(&revision, "revision", 0, "revision number to restore")
 	return cmd
 }
 

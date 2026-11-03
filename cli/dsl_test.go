@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/maxid/gable/dsl"
 )
 
 const cliModel = `apiVersion: gable/v1
@@ -143,5 +145,67 @@ func TestLoadDSLSetFromDirectory(t *testing.T) {
 	}
 	if len(set.Models) != 1 || len(set.Tables) != 1 {
 		t.Fatalf("set = %+v", set)
+	}
+}
+
+func TestDSLCLIDiffAndPushRequireDSN(t *testing.T) {
+	dir := t.TempDir()
+	writeCLI(t, dir, "task.model.yaml", cliModel)
+	for _, args := range [][]string{
+		{"diff", "--dir", dir},
+		{"push", "--dir", dir, "--dry-run"},
+		{"history", "Model/task"},
+		{"restore", "Model/task", "--revision", "1"},
+	} {
+		if _, err := runDSL(t, args...); err == nil || !strings.Contains(err.Error(), "--dsn") {
+			t.Fatalf("%v: err = %v, want a missing --dsn", args, err)
+		}
+	}
+}
+
+func TestDSLCLIRestoreNeedsARevision(t *testing.T) {
+	if _, err := runDSL(t, "restore", "Model/task", "--dsn", "unused"); err == nil ||
+		!strings.Contains(err.Error(), "--revision") {
+		t.Fatalf("err = %v, want a missing --revision", err)
+	}
+}
+
+func TestPrintDiff(t *testing.T) {
+	diff := dsl.Diff{Changes: []dsl.Change{
+		{Kind: "Model", Name: "task", Action: dsl.ChangeAdded},
+		{Kind: "Model", Name: "old", Action: dsl.ChangeRemoved},
+		{Kind: "Table", Name: "task.table", Action: dsl.ChangeChanged, Lines: []dsl.DiffLine{
+			{Op: " ", Text: "metadata:"},
+			{Op: "-", Text: "  title: Old"},
+			{Op: "+", Text: "  title: New"},
+		}},
+	}}
+
+	var plain bytes.Buffer
+	printDiff(&plain, diff, false)
+	if !strings.Contains(plain.String(), "added   Model/task") ||
+		!strings.Contains(plain.String(), "removed Model/old") ||
+		!strings.Contains(plain.String(), "1 added, 1 changed, 1 removed") {
+		t.Fatalf("plain = %q", plain.String())
+	}
+	if strings.Contains(plain.String(), "title: Old") {
+		t.Fatalf("plain = %q, want no lines without --lines", plain.String())
+	}
+
+	var detailed bytes.Buffer
+	printDiff(&detailed, diff, true)
+	for _, want := range []string{"-   title: Old", "+   title: New"} {
+		if !strings.Contains(detailed.String(), want) {
+			t.Fatalf("detailed = %q, missing %q", detailed.String(), want)
+		}
+	}
+	if strings.Contains(detailed.String(), "  metadata:") {
+		t.Fatalf("detailed = %q, want context lines skipped", detailed.String())
+	}
+
+	var empty bytes.Buffer
+	printDiff(&empty, dsl.Diff{}, false)
+	if empty.String() != "no changes\n" {
+		t.Fatalf("empty = %q", empty.String())
 	}
 }
