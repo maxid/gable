@@ -251,6 +251,23 @@ gable dsl restore Model/task --revision 3 --dsn '...'
 
 基于这些 revision 的 diff/dry-run 与 Api/Mcp kind 是下一刀。
 
+## 配置热更新
+
+```go
+watcher, err := config.Watch("gable.yaml", config.WithOnChange(func(cfg *config.Config) error {
+    return featureFlags.Rebind(cfg) // 返回错误则保留旧配置
+}))
+defer watcher.Close()
+cfg := watcher.Config() // 每次重载换一个新指针，不原地修改
+```
+
+监听的是目录而不是文件：编辑器与 ConfigMap 更新都是替换文件，监听文件会随旧 inode 失效。
+一次保存产生的多次写事件会合并成一次重载；文件不合法时保留上一份可用配置并通过 `WithOnError`
+报错——一个拼写错误不该把运行中的进程弄挂；订阅者返回错误会阻止切换，避免“半应用”的重载。
+
+热更新替换的是**配置值**，不会重新注册模块。依赖 Register 期设置的接线（监听地址、连接池）仍需重启，
+这是刻意的：否则模块就得绕过生命周期去改活状态。
+
 ## 校验与文案
 
 ```go

@@ -11,6 +11,10 @@ All notable changes to this project will be documented in this file.
   signatures are unchanged (`gable.Module` is `gplugin.Module[*Container]` plus the
   optional lifecycle).
 
+- Configuration hot reload: `config.Watch` loads, validates and then watches the
+  directory (editors and ConfigMap updates replace the file), collapses a write burst
+  into one reload, keeps the last good config when the new file is invalid, and refuses a
+  swap when a subscriber rejects it.
 - Validation and messages: `validate` reports every failing field as
   `{field, rule, message}` (the same shape binding errors render) with overridable and
   translatable messages and custom rules; `i18n.Bundle` resolves exact language → base

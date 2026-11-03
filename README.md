@@ -361,6 +361,27 @@ resource is not implicit: dropping it from the set leaves the row in place.
 
 The diff/dry-run over those revisions and the Api/Mcp kinds are the next slice.
 
+## Configuration hot reload
+
+```go
+watcher, err := config.Watch("gable.yaml", config.WithOnChange(func(cfg *config.Config) error {
+    return featureFlags.Rebind(cfg) // return an error to keep the previous config
+}))
+defer watcher.Close()
+cfg := watcher.Config() // a fresh pointer after each reload, never a mutated one
+```
+
+The directory is watched, not the file: editors and ConfigMap updates replace the file,
+which would end a watch on the old inode. A burst of writes collapses into one reload, an
+invalid file keeps the last good configuration and reports the error through
+`WithOnError` — a typo must not take a running process down — and a subscriber that returns
+an error blocks the swap, so a half-applied reload cannot happen.
+
+Hot reload replaces the *configuration value*; it does not re-register modules. Wiring that
+depends on a setting at Register time (a listener address, a database pool) still needs a
+restart, and that is deliberate: the alternative is modules mutating live state behind the
+lifecycle's back.
+
 ## Validation and messages
 
 ```go

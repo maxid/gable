@@ -2,7 +2,7 @@
 
 - [x] Explicit container and module lifecycle
 - [x] Capability plugins: `gplugin.Set` selection, manifests, optional lifecycle (moved to [`gplugin`](https://github.com/maxid/gplugin))
-- [x] Typed configuration (YAML + environment)
+- [x] Typed configuration (YAML + environment) with a validating hot-reload watcher
 - [x] `glogs` logger
 - [x] Stable error codes
 - [x] Web MVC, binding/validation, response envelope
