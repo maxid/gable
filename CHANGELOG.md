@@ -11,6 +11,10 @@ All notable changes to this project will be documented in this file.
   signatures are unchanged (`gable.Module` is `gplugin.Module[*Container]` plus the
   optional lifecycle).
 
+- CLI: `gable gen dsl` turns gable-tagged Go structs into `Model` resources (flags,
+  sizes, column and table names), omitting relations and any field it cannot express —
+  with a warning on stderr rather than silently. Writing twice leaves identical files
+  untouched.
 - OpenAPI: `Route.Extension(name, value)` attaches a vendor extension (`x-...`) to an
   operation, flattened into the operation object; a name without the prefix panics at
   wiring time. Routes may be written with OpenAPI's `{id}` and are translated to Gin's

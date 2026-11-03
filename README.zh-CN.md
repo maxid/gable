@@ -202,6 +202,24 @@ err := db.WithTx(ctx, func(ctx context.Context, tx *orm.Tx) error {
 
 Schema 迁移在独立库 [`gmigrate`](https://github.com/maxid/gmigrate)；gable 只保留开发用的 `AutoMigrate`。
 
+## 从 Go 代码生成 DSL
+
+```bash
+gable gen dsl --pkg ./internal/model --out resources --table-prefix app_ --dry-run
+gable gen dsl --pkg ./internal/model --out resources          # 写入 Model-<name>.yaml
+```
+
+生成器只解析语法（不做类型检查），把带 `gable` tag 的结构体转成 `Model` 资源：
+
+- 导出字段成为列——`gable:"-"` 与关系字段（`has_many`、`belongs_to`）不会，因为关系不是列；
+- `pk`、`tenant`、`unique`、`auto_create`、`auto_update`、`auto`、`size=N` 转成对应标志；
+- `column=x` 改名，`table=x` 指定表名（否则用蛇形结构体名，加 `--table-prefix` 前缀）；
+- Go 类型在 DSL 里没有对应物的字段会被**省略并在 stderr 给出警告**，绝不静默丢弃——
+  目前包括 `soft_delete`/`retain` 标记与切片/结构体字段。
+
+同一份输入写两次不会改动文件，所以放进 CI 时“没变化”就是真的没变化。产物是骨架：
+label、enum、default 与 Table/Form 叠加层仍需手写，因为那才是 DSL 存在的意义。
+
 ## DSL
 
 ```bash

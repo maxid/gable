@@ -35,7 +35,8 @@
 - [ ] 低代码资源编译到 LCDP IR
 - [x] CLI：`new`、`dev`、`version`
 - [x] CLI：`inspect`（生效配置，DSN 密码打码；派生 namespace 名称；DSL 摘要）
-- [ ] CLI：`gen`、`migrate`（库已存在，命令未接）
+- [x] CLI：`gen dsl`（从带 gable tag 的 Go 结构体生成 Model 资源，幂等，无法表达的字段给警告）
+- [ ] CLI：`migrate`（库已存在，命令未接）
 - [x] 校验（`validate`）、多语言消息（`i18n`）与带排序白名单的 `ctx.Page`
 - [x] 可观测：存活/就绪注册表、`/healthz`、`/readyz`、Prometheus 文本 `/metrics`（请求与延迟指标）
 - [ ] v1.0 API 稳定化

@@ -308,6 +308,28 @@ no lazy loading, so a handler cannot accidentally issue a query per row.
 
 Schema migrations live in the independent [`gmigrate`](https://github.com/maxid/gmigrate) library; gable only keeps `AutoMigrate` for development.
 
+## Generating DSL from Go code
+
+```bash
+gable gen dsl --pkg ./internal/model --out resources --table-prefix app_ --dry-run
+gable gen dsl --pkg ./internal/model --out resources          # writes Model-<name>.yaml
+```
+
+The generator parses the package (it does not type-check) and turns every struct with
+`gable` tags into a `Model` resource:
+
+- exported fields become columns — `gable:"-"` fields and relations (`has_many`,
+  `belongs_to`) do not, because a relation is not a column;
+- `pk`, `tenant`, `unique`, `auto_create`, `auto_update`, `auto` and `size=N` become flags;
+- `column=x` renames the column, `table=x` names the table (otherwise the snake-cased struct
+  name, prefixed by `--table-prefix`);
+- a field whose Go type has no DSL equivalent is left out **with a warning on stderr**, never
+  silently: `soft_delete`/`retain` markers and slice/struct fields are named there today.
+
+Writing twice leaves identical files untouched, so running it in CI is a no-op when nothing
+changed. The output is a skeleton: labels, enums, defaults and the Table/Form overlays are
+still written by hand, because those are the parts the DSL exists to carry.
+
 ## DSL
 
 ```bash

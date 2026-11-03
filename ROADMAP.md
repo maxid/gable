@@ -35,7 +35,7 @@
 - [x] CLI: `new`, `dev`, `version`
 - [x] CLI: `migrate` (DSL models → missing tables, `--dry-run` prints the DDL)
 - [x] CLI: `inspect` (effective config with the DSN password redacted, derived namespace names, DSL summary)
-- [ ] CLI: `gen` (what it generates is still undecided)
+- [x] CLI: `gen dsl` (Model resources from gable-tagged Go structs, idempotent, warns on fields it cannot express)
 - [x] Validation (`validate`), message bundles (`i18n`) and `ctx.Page` with a sort whitelist
 - [x] Observability: liveness/readiness registries, `/healthz`, `/readyz`, Prometheus-text `/metrics` with request and latency instruments
 - [ ] v1.0 API stabilization
