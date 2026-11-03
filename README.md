@@ -659,6 +659,27 @@ gable mcp list --command gable --arg dsl --arg mcp --arg --dir --arg ./resources
 `mcp call` exits non-zero when the tool reports an error, so a script gets the same verdict a
 human reads.
 
+## Bundling for deployment
+
+```bash
+gable pack --config gable.yaml --dir resources --assets public --out app.tar.gz --app shop
+gable restore app.tar.gz --out /srv/app
+gable token --config gable.yaml --secret "$SECRET" --username ada --ttl 15m
+```
+
+`pack` puts the configuration, the DSL resources and any static assets into one archive with an
+index (`bundle.json`) that carries a checksum per file and a content version. Entries are
+sorted with zero mtimes and no ownership, so the same inputs always yield the same version —
+two bundles are comparable even when they were packed at different times.
+
+`restore` verifies **every** file before writing any of them: a corrupt archive fails without
+leaving a half-restored application, which is a harder state to diagnose than a refusal. It
+refuses a non-empty target unless `--force` is given.
+
+`token` mints a short-lived access token with the same issuer, secret and TTL the application
+verifies, which is what a CI smoke test needs before the application can log in. The token is
+the only thing on stdout, so `TOKEN=$(gable token ...)` works.
+
 ## Namespaces
 
 ```yaml

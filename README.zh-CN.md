@@ -508,6 +508,23 @@ for {
 provider 按名字选择：`openai`（OpenAI 以及所有复制该线的服务）或 `anthropic`（Messages API：
 system 在顶层、工具调用是 content block）。两边都不像的供应商应该有自己的适配器，而不是一堆开关。
 
+## 交付打包
+
+```bash
+gable pack --config gable.yaml --dir resources --assets public --out app.tar.gz --app shop
+gable restore app.tar.gz --out /srv/app
+gable token --config gable.yaml --secret "$SECRET" --username ada --ttl 15m
+```
+
+`pack` 把配置、DSL 资源与静态资产打进一个包，并附一份索引（`bundle.json`）：每个文件的校验和 + 内容版本号。
+条目排序、mtime 归零、丢弃属主，所以同样的输入永远得到同样的版本号——两个包即使在不同时间打，也能直接比较。
+
+`restore` **先校验全部文件再写任何一个**：坏包直接失败，不会留下「半个应用」这种更难排查的状态；
+目标目录非空时拒绝，除非给 `--force`。
+
+`token` 用与应用相同的 issuer/secret/TTL 签一枚短期令牌，正是 CI 冒烟在应用能登录之前需要的东西。
+stdout 上只有令牌本身，所以 `TOKEN=$(gable token ...)` 可用。
+
 ## 命名空间
 
 ```yaml

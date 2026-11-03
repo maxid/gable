@@ -71,6 +71,11 @@ All notable changes to this project will be documented in this file.
 - DSL runtime: dynamic `/dsl/data/<model>` CRUD with tenant guard, vamis
   pagination aliases and `gable dsl serve`; MCP tools over stdio
   (`gable dsl mcp`).
+- CLI bundling: `gable pack` writes the configuration, DSL resources and static assets into
+  one archive with a per-file checksum and a content version (sorted entries, zero mtimes, no
+  ownership, so the version answers "are these the same"). `gable restore` verifies every file
+  before writing any of them and refuses a non-empty target unless `--force`. `gable token`
+  mints a short-lived access token with the issuer, secret and TTL the application verifies.
 - AI streaming: `ai.Service.Stream` turns the bounded tool loop inside out — text arrives as
   it is generated, tool calls and their results are events, and `Done` is a normal event
   followed by `io.EOF`. `Stream.ServeSSE` writes `text/event-stream` with a flush per event,
