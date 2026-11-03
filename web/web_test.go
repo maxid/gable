@@ -19,6 +19,7 @@ import (
 	"github.com/maxid/gable/health"
 	"github.com/maxid/gable/metrics"
 	"github.com/maxid/gable/tenant"
+	"github.com/maxid/gable/validate"
 )
 
 func TestMain(m *testing.M) {
@@ -147,8 +148,59 @@ func TestValidationError(t *testing.T) {
 		t.Fatalf("envelope = %+v", envelope)
 	}
 	details, _ := envelope.Data.(map[string]any)
-	if details["Name"] != "required" {
+	fields, _ := details["fields"].([]any)
+	if len(fields) != 1 {
 		t.Fatalf("details = %+v", envelope.Data)
+	}
+	entry, _ := fields[0].(map[string]any)
+	// Binding errors and validate.Issues report the same shape: field, rule, message.
+	if entry["field"] != "Name" || entry["rule"] != "required" || entry["message"] != "is required" {
+		t.Fatalf("details = %+v", envelope.Data)
+	}
+}
+
+// A handler can run the framework validator on a payload and return the issues; the
+// envelope must look exactly like a binding failure.
+func TestValidatePackageIssuesRenderLikeBindingErrors(t *testing.T) {
+	server := New(WithTitle("validate"))
+	validator := validate.New()
+	server.Router().POST("/orders", func(ctx *Context) error {
+		var payload struct {
+			SKU      string `json:"sku" validate:"required"`
+			Quantity int    `json:"quantity" validate:"min=1,max=99"`
+		}
+		if err := ctx.Bind(&payload); err != nil {
+			return err
+		}
+		if issues := validator.Struct(payload); len(issues) > 0 {
+			return issues
+		}
+		return ctx.JSON(200, map[string]any{"ok": true})
+	}).Doc("create an order")
+
+	recorder := perform(server, http.MethodPost, "/orders", strings.NewReader(`{"quantity":500}`), map[string]string{"Content-Type": "application/json"})
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d: %s", recorder.Code, recorder.Body)
+	}
+	envelope := decodeEnvelope(t, recorder.Body.Bytes())
+	if envelope.Code != "invalid_argument" {
+		t.Fatalf("envelope = %+v", envelope)
+	}
+	details, _ := envelope.Data.(map[string]any)
+	fields, _ := details["fields"].([]any)
+	if len(fields) != 2 {
+		t.Fatalf("details = %+v", envelope.Data)
+	}
+	rules := map[string]string{}
+	for _, raw := range fields {
+		entry, _ := raw.(map[string]any)
+		if message, ok := entry["message"].(string); !ok || message == "" {
+			t.Fatalf("entry = %+v, want a message", entry)
+		}
+		rules[entry["field"].(string)] = entry["rule"].(string)
+	}
+	if rules["sku"] != "required" || rules["quantity"] != "max" {
+		t.Fatalf("rules = %v", rules)
 	}
 }
 

@@ -38,22 +38,25 @@ func (r *Runtime) listHTTP(ctx *web.Context) error {
 			filters[key] = values[0]
 		}
 	}
-	size := ctx.QueryInt("size", 0)
-	if size == 0 {
-		size = ctx.QueryInt("perPage", 20)
+	// Pagination and the sort whitelist come from the framework helper: the whitelist is
+	// the model's own columns, so a request cannot order by a column the model does not
+	// have and get a silent 200 with the wrong order.
+	model := r.set.Models[ctx.Param("model")]
+	if model == nil {
+		return invalid("unknown model " + ctx.Param("model"))
 	}
-	sort := ctx.Query("sort")
-	if sort == "" {
-		sort = ctx.Query("orderBy")
+	page, err := ctx.Page(modelColumns(model)...)
+	if err != nil {
+		return err
 	}
-	order := ctx.Query("order")
-	if order == "" {
-		order = ctx.Query("orderDir")
+	order := "asc"
+	if page.Desc {
+		order = "desc"
 	}
 	result, err := r.List(ctx.Request().Context(), ctx.Param("model"), ListOptions{
-		Page:    ctx.QueryInt("page", 1),
-		Size:    size,
-		Sort:    sort,
+		Page:    page.Number,
+		Size:    page.Size,
+		Sort:    page.Sort,
 		Order:   order,
 		Filters: filters,
 	})
@@ -61,6 +64,15 @@ func (r *Runtime) listHTTP(ctx *web.Context) error {
 		return err
 	}
 	return ctx.JSON(http.StatusOK, result)
+}
+
+// modelColumns lists the columns a list request may sort by.
+func modelColumns(doc *ModelDoc) []string {
+	columns := make([]string, 0, len(doc.Spec.Fields))
+	for _, field := range doc.Spec.Fields {
+		columns = append(columns, field.Name)
+	}
+	return columns
 }
 
 func (r *Runtime) getHTTP(ctx *web.Context) error {

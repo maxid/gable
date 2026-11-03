@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -181,6 +182,33 @@ func TestRuntimeHTTPAndVamisAliases(t *testing.T) {
 	server.Handler().ServeHTTP(recorder, list)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("list status = %d, body = %s", recorder.Code, recorder.Body)
+	}
+}
+
+// A sort column outside the model is refused instead of silently ignored: the earlier
+// behaviour returned 200 with the wrong order, which reads as a data bug.
+func TestRuntimeRejectsUnknownSortColumn(t *testing.T) {
+	runtime, _ := newRuntimeMock(t)
+	server := web.New(web.WithTitle("dsl"))
+	server.UseTenant(tenant.NewSingleResolver(tenant.DefaultConfig()))
+	runtime.Routes(server.Router(), "/dsl/data")
+
+	request := httptest.NewRequest(http.MethodGet, "/dsl/data/task?sort=password_hash", nil)
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body)
+	}
+	if body := recorder.Body.String(); !strings.Contains(body, "invalid sort") {
+		t.Fatalf("body = %s", body)
+	}
+
+	// An unknown model is a client error too, not a nil-pointer panic on the whitelist.
+	request = httptest.NewRequest(http.MethodGet, "/dsl/data/missing", nil)
+	recorder = httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("unknown model status = %d, body = %s", recorder.Code, recorder.Body)
 	}
 }
 
