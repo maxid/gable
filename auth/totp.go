@@ -85,21 +85,38 @@ func TOTPCode(secret string, at time.Time, cfg TOTPConfig) (string, error) {
 // VerifyTOTP reports whether a code is valid at a moment in time, accepting one step of
 // drift either way by default.
 func VerifyTOTP(secret, code string, at time.Time, cfg TOTPConfig) bool {
+	_, ok := MatchTOTP(secret, code, at, cfg)
+	return ok
+}
+
+// MatchTOTP reports which time step a code belongs to.
+//
+// The step is what makes replay detection possible: a code is only usable once, and "once" has
+// to be remembered as the step it belonged to, not as the code itself — a code repeats every
+// 30 seconds, a step never does.
+func MatchTOTP(secret, code string, at time.Time, cfg TOTPConfig) (int64, bool) {
 	cfg = cfg.normalize()
 	code = strings.TrimSpace(code)
 	if len(code) != cfg.Digits {
-		return false
+		return 0, false
 	}
 	for offset := -cfg.Skew; offset <= cfg.Skew; offset++ {
-		candidate, err := TOTPCode(secret, at.Add(time.Duration(offset)*cfg.Period), cfg)
+		moment := at.Add(time.Duration(offset) * cfg.Period)
+		candidate, err := TOTPCode(secret, moment, cfg)
 		if err != nil {
-			return false
+			return 0, false
 		}
 		if subtle.ConstantTimeCompare([]byte(candidate), []byte(code)) == 1 {
-			return true
+			return StepAt(moment, cfg), true
 		}
 	}
-	return false
+	return 0, false
+}
+
+// StepAt is the time step a moment belongs to.
+func StepAt(at time.Time, cfg TOTPConfig) int64 {
+	cfg = cfg.normalize()
+	return at.Unix() / int64(cfg.Period.Seconds())
 }
 
 // OTPAuthURL is what a QR code encodes.

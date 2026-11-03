@@ -31,6 +31,7 @@
 - [x] Social login callbacks (/oauth2/login|callback/:provider)
 - [x] OIDC id_token/JWKS/userinfo (RS256)
 - [x] Cookie sessions and MFA (TOTP + one-time recovery codes, login ticket)
+- [x] MFA for more than one replica: Redis-backed `MFAStore`/`ChallengeStore`, single-use TOTP steps
 - [x] `rpc`: local + HTTP/JSON bindings with a resolver port (Nacos adapter lives with the deployment)
 - [x] `mcp`: operations as MCP tools over HTTP (shared-key transport check)
 - [x] `mcp`: client for remote servers (HTTP and stdio) with `gable mcp list/call`

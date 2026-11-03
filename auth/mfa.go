@@ -24,6 +24,28 @@ var (
 	ErrMFANotEnrolled = gableerrors.New("auth_mfa_not_enrolled", "no second factor is active").WithStatus(400)
 )
 
+// keyedMutex hands out one mutex per key, so two accounts never wait on each other.
+type keyedMutex struct {
+	mu    sync.Mutex
+	locks map[string]*sync.Mutex
+}
+
+func (k *keyedMutex) lock(key string) func() {
+	k.mu.Lock()
+	if k.locks == nil {
+		k.locks = map[string]*sync.Mutex{}
+	}
+	lock, ok := k.locks[key]
+	if !ok {
+		lock = &sync.Mutex{}
+		k.locks[key] = lock
+	}
+	k.mu.Unlock()
+
+	lock.Lock()
+	return lock.Unlock
+}
+
 // RecoveryCodeCount is how many one-time codes an enrollment hands out.
 const RecoveryCodeCount = 10
 
@@ -43,6 +65,10 @@ type MFAState struct {
 	CreatedAt     time.Time
 	ActivatedAt   time.Time
 	LastUsedAt    time.Time
+	// LastStep is the most recent TOTP step that was accepted. A code is only accepted when its
+	// step is greater, so the same 30-second code cannot be used twice — by two requests, by two
+	// replicas sharing this state, or by anyone who saw it.
+	LastStep int64
 }
 
 // MFAStore persists MFA state per tenant and account.
@@ -117,6 +143,12 @@ type MFAService struct {
 	cfg    TOTPConfig
 	now    func() time.Time
 	random func([]byte) (int, error)
+
+	// locks serialises the read-modify-write of one account's state inside this process, so a
+	// code cannot be accepted twice by two concurrent requests. Across replicas the state store
+	// has to provide that guarantee; without it two requests in the same 30-second window can
+	// both win.
+	locks keyedMutex
 }
 
 // NewMFAService builds the service. A nil store falls back to memory.
@@ -218,6 +250,9 @@ func (s *MFAService) Activate(ctx context.Context, tenantID int64, username stri
 // Verify checks a TOTP code or a recovery code, and consumes a recovery code when one is
 // used so it cannot be replayed.
 func (s *MFAService) Verify(ctx context.Context, tenantID int64, username string, code string) error {
+	unlock := s.locks.lock(mfaKey(tenantID, username))
+	defer unlock()
+
 	state, err := s.store.GetMFA(ctx, tenantID, username)
 	if err != nil {
 		return err
@@ -225,9 +260,8 @@ func (s *MFAService) Verify(ctx context.Context, tenantID int64, username string
 	if state == nil || !state.Active {
 		return ErrMFANotEnrolled
 	}
-	if VerifyTOTP(state.Secret, code, s.now(), s.cfg) {
-		state.LastUsedAt = s.now().UTC()
-		return s.store.PutMFA(ctx, state)
+	if step, ok := MatchTOTP(state.Secret, code, s.now(), s.cfg); ok {
+		return s.consumeStep(ctx, state, step)
 	}
 
 	hashed := hashRecoveryCode(code)
@@ -240,6 +274,19 @@ func (s *MFAService) Verify(ctx context.Context, tenantID int64, username string
 		return s.store.PutMFA(ctx, state)
 	}
 	return ErrMFAInvalidCode
+}
+
+// consumeStep records an accepted TOTP step, refusing one that was already used.
+//
+// Only a strictly newer step is accepted: the comparison is monotonic, so an old code cannot
+// become valid again after a newer one was used, even if the clock moves back.
+func (s *MFAService) consumeStep(ctx context.Context, state *MFAState, step int64) error {
+	if step <= state.LastStep {
+		return ErrMFAInvalidCode
+	}
+	state.LastStep = step
+	state.LastUsedAt = s.now().UTC()
+	return s.store.PutMFA(ctx, state)
 }
 
 // Disable turns the second factor off, which requires a working code: an attacker with a

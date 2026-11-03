@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -364,4 +365,106 @@ func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
 		}
 	}
 	return nil
+}
+
+// A TOTP code is valid for its step and no longer: replaying it in the same window must fail,
+// even though the code itself is still inside the skew.
+func TestTOTPCodeCannotBeReplayed(t *testing.T) {
+	service, err := NewMFAService(DefaultTOTPConfig("gable"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock := time.Unix(1_800_000_000, 0)
+	service.now = func() time.Time { return clock }
+	ctx := context.Background()
+
+	enrollment, err := service.Enroll(ctx, 1, "ada")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, err := TOTPCode(enrollment.Secret, clock, service.Config())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Activate(ctx, 1, "ada", code); err != nil {
+		t.Fatal(err)
+	}
+
+	// Activate recorded nothing about the code; the first Verify consumes its step.
+	if err := service.Verify(ctx, 1, "ada", code); err != nil {
+		t.Fatalf("first use: %v", err)
+	}
+	if err := service.Verify(ctx, 1, "ada", code); err != ErrMFAInvalidCode {
+		t.Fatalf("replay = %v, want ErrMFAInvalidCode", err)
+	}
+
+	// The next step's code is accepted, and the old one stays dead even though the window has
+	// moved on.
+	clock = clock.Add(30 * time.Second)
+	next, err := TOTPCode(enrollment.Secret, clock, service.Config())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Verify(ctx, 1, "ada", next); err != nil {
+		t.Fatalf("next step: %v", err)
+	}
+	if err := service.Verify(ctx, 1, "ada", code); err != ErrMFAInvalidCode {
+		t.Fatalf("old step after a newer one = %v", err)
+	}
+
+	state, err := service.store.GetMFA(ctx, 1, "ada")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.LastStep != StepAt(clock, service.Config()) {
+		t.Fatalf("LastStep = %d, want %d", state.LastStep, StepAt(clock, service.Config()))
+	}
+}
+
+// Two concurrent verifications of the same code: exactly one wins inside a process.
+func TestTOTPReplayIsSerialised(t *testing.T) {
+	service, err := NewMFAService(DefaultTOTPConfig("gable"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock := time.Unix(1_800_000_000, 0)
+	service.now = func() time.Time { return clock }
+	ctx := context.Background()
+
+	enrollment, err := service.Enroll(ctx, 1, "ada")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, err := TOTPCode(enrollment.Secret, clock, service.Config())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Activate(ctx, 1, "ada", code); err != nil {
+		t.Fatal(err)
+	}
+
+	var success, rejected int
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := service.Verify(ctx, 1, "ada", code)
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case err == nil:
+				success++
+			case err == ErrMFAInvalidCode:
+				rejected++
+			default:
+				t.Errorf("unexpected error: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	if success != 1 || rejected != 7 {
+		t.Fatalf("success = %d, rejected = %d; want exactly one success", success, rejected)
+	}
 }

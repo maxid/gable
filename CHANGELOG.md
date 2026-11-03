@@ -71,6 +71,10 @@ All notable changes to this project will be documented in this file.
 - DSL runtime: dynamic `/dsl/data/<model>` CRUD with tenant guard, vamis
   pagination aliases and `gable dsl serve`; MCP tools over stdio
   (`gable dsl mcp`).
+- Auth for more than one replica: `auth.NewRedisStores` backs `MFAStore` and `ChallengeStore`
+  with a gcache shared store (not the cache — its local tier is invalidated asynchronously,
+  which is wrong for an auth decision), and `MFAService` records the accepted TOTP step so a
+  code cannot be reused inside its window, across replicas or after a clock rollback.
 - CLI bundling: `gable pack` writes the configuration, DSL resources and static assets into
   one archive with a per-file checksum and a content version (sorted entries, zero mtimes, no
   ownership, so the version answers "are these the same"). `gable restore` verifies every file

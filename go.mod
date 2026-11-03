@@ -17,7 +17,9 @@ require (
 	github.com/maxid/glogs v0.0.0-20261029144859-382e4fa15661
 	github.com/maxid/gmcp v0.0.0-20261103060323-87886a8c402b
 	github.com/maxid/gns v0.0.0-20261031175400-9ad9adafc373
+	github.com/maxid/gplugin v0.0.0-20261102034223-09f50dbe8e66
 	github.com/nacos-group/nacos-sdk-go/v2 v2.3.5
+	github.com/redis/go-redis/v9 v9.23.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.57.0
 	golang.org/x/oauth2 v0.37.0
@@ -70,11 +72,10 @@ require (
 	github.com/jackc/puddle/v2 v2.2.3 // indirect
 	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/leodido/go-urn v1.5.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
-	github.com/maxid/gplugin v0.0.0-20261102034223-09f50dbe8e66 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/orcaman/concurrent-map v0.0.0-20210501183033-44dafcb38ecc // indirect

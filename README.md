@@ -782,8 +782,29 @@ handlers.MFA = mfa
 - `POST /passport/mfa/disable` requires a working code: a stolen session alone
   must not be able to remove the factor.
 
-`MFAStore` and `ChallengeStore` default to memory; a deployment with more than one
-replica needs shared implementations of both.
+### Shared state for more than one replica
+
+MFA is a property of the account, not of the pod that accepted the enrollment. The memory
+stores are for a single process; a deployment behind a load balancer uses the shared ones:
+
+```go
+store, _ := gredis.NewStore(redisClient)          // github.com/maxid/gcache/redis
+mfaStore, challengeStore := auth.NewRedisStores(store, 5*time.Minute)
+
+mfa, _ := auth.NewMFAService(auth.DefaultTOTPConfig("myapp"), mfaStore)
+handlers.MFA = mfa
+handlers.Challenges = challengeStore
+```
+
+They take the gcache *shared store*, not `gcache.Cache`: a cache answers from a local tier that
+another replica's write invalidates asynchronously, which is fine for a cache and wrong for an
+authentication decision. The integration test caught exactly that — a replica accepted a code the
+other had already consumed.
+
+A TOTP code is single-use: `MFAService` records the time step it accepted and refuses any step
+that is not newer, so a code cannot be replayed inside its 30-second window, across replicas
+(when the store is shared) or after the clock moves back. The read-modify-write is serialised per
+account in-process; a shared store is what extends that guarantee across replicas.
 
 ## Examples
 

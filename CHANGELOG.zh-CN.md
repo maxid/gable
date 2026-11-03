@@ -26,6 +26,7 @@
 - 修复：`orm.Open` 把 `postgres` 当方言接收却当驱动名传给 `sql.Connect`；PostgreSQL 走 `pgx`，现在每个别名都会打开真正注册的驱动。
 - DSL 首刀：`gable/v1` Model/Table/Form/Page、lint、Model DDL、`lcdp.ir/v1` preview、幂等 file apply 与 `gable dsl` 命令。
 - DSL runtime：动态 `/dsl/data/<model>` CRUD、租户守卫、vamis 分页别名与 `gable dsl serve`；stdio MCP 工具（`gable dsl mcp`）。
+- 多副本认证：`auth.NewRedisStores` 用 gcache 的共享存储（不是 `gcache.Cache`——它的本地层是异步失效的，对认证判定是错的）支撑 `MFAStore` 与 `ChallengeStore`；`MFAService` 记录已接受的 TOTP 步长，验证码在窗口内、跨副本、时钟回拨后都无法重放。
 - CLI 打包：`gable pack` 把配置、DSL 资源与静态资产打成带索引的包（每文件校验和 + 内容版本；条目排序、mtime 归零、丢弃属主，所以版本号能回答「两份是不是同一份」）。`gable restore` 先校验全部文件再写，目标非空需 `--force`。`gable token` 用应用相同的 issuer/secret/TTL 签短期令牌。
 - AI 流式：`ai.Service.Stream` 把同一套有界工具循环翻过来——文本边生成边发，工具调用与结果都是事件，`Done` 是普通事件、之后才 `io.EOF`。`Stream.ServeSSE` 写 `text/event-stream`，每个事件 flush、`[DONE]` 结束标记、`X-Accel-Buffering: no`；响应头发出后的 provider 失败以 `event: error` 帧送出。provider 选择新增 `anthropic`（Messages API）。
 - MCP 客户端：`mcp.Dial` 通过 streamable HTTP 或 stdio 子进程连远端服务器（此前 `gable/mcp` 只有服务端），`gable mcp list/call` 提供命令行入口。`CallTool` 把 `IsError` 结果当数据返回，调用方能区分「工具拒绝」与「传输失败」；`mcp call` 在前者以非零码退出。gmcp 的 HTTP 客户端补上了 stdio 客户端早已有的 `ListTools`/`CallTool`。

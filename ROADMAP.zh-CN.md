@@ -33,6 +33,7 @@
 - [x] 社交登录回调（/oauth2/login|callback/:provider）
 - [x] OIDC id_token/JWKS/userinfo（RS256）
 - [x] Cookie 会话与 MFA（TOTP + 一次性恢复码 + 登录 ticket）
+- [x] 多副本 MFA：Redis 版 `MFAStore`/`ChallengeStore`，TOTP 步长一次性
 - [x] `rpc`：local + HTTP/JSON binding，resolver 端口（Nacos adapter 随部署提供）
 - [x] `mcp` 客户端：连远端服务器（HTTP 与 stdio），含 `gable mcp list/call`
 - [ ] `gai` adapter

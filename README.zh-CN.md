@@ -614,7 +614,25 @@ handlers.MFA = mfa
 - 恢复码落库为哈希，每个只能用一次；
 - `POST /passport/mfa/disable` 需要有效验证码：光有被盗会话不能把因子关掉。
 
-`MFAStore` 与 `ChallengeStore` 默认内存实现；多副本部署需要两者的共享实现。
+### 多副本的共享状态
+
+MFA 是账号的属性，不是接受注册的那个 pod 的属性。内存实现只适合单进程；多副本部署要换成共享实现：
+
+```go
+store, _ := gredis.NewStore(redisClient)          // github.com/maxid/gcache/redis
+mfaStore, challengeStore := auth.NewRedisStores(store, 5*time.Minute)
+
+mfa, _ := auth.NewMFAService(auth.DefaultTOTPConfig("myapp"), mfaStore)
+handlers.MFA = mfa
+handlers.Challenges = challengeStore
+```
+
+它们接收的是 gcache 的**共享存储**而不是 `gcache.Cache`：缓存的本地层会被其他副本的写入异步失效，
+对缓存无所谓，对认证判定则是错的。集成测试正是抓到了这一点——一个副本接受了另一个副本已经消费过的验证码。
+
+TOTP 验证码是一次性的：`MFAService` 记录已接受的时间步，只接受**更新**的步，所以同一个码在它的
+30 秒窗口内无法重放，跨副本（共享存储时）不行，时钟回拨后也不行。读改写在本进程内按账号串行；
+跨副本的那半条保证由共享存储提供。
 
 ## 示例
 
