@@ -11,6 +11,13 @@ All notable changes to this project will be documented in this file.
   signatures are unchanged (`gable.Module` is `gplugin.Module[*Container]` plus the
   optional lifecycle).
 
+- Observability: `health` registry (liveness vs readiness, critical and optional
+  probes, panicking probes reported as failures) and a dependency-free `metrics`
+  registry rendering Prometheus text. `web.WithHealth`/`web.WithMetrics` mount
+  `/healthz`, `/readyz` and `/metrics`, and the server records request counts,
+  in-flight requests and latency bucketed by route pattern — never by path.
+  `App` owns both registries, publishes `gable_capabilities`, and only becomes
+  ready once `Start` has wired every module.
 - Initial scaffold: `App`, `Container`, module lifecycle, typed configuration,
   `glogs` logging and stable error codes.
 - `web`: Gin-backed MVC, six-field envelope, binding/validation, request ids,

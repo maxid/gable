@@ -7,6 +7,7 @@
 ## [Unreleased]
 
 - `migrate`：Flyway 兼容的 `flyway_schema_history` store、按行 CRC32 校验和、版本化 SQL 加载、baseline/repair 与 MySQL/PostgreSQL 锁。
+- 可观测：`health` 注册表（存活 vs 就绪、关键与可选探针、panic 记为失败）与零依赖的 `metrics` 注册表（Prometheus 文本）。`web.WithHealth`/`web.WithMetrics` 挂载 `/healthz`、`/readyz`、`/metrics`，服务端记录请求数、在途请求与按**路由模板**分桶的延迟（不用路径）。`App` 持有两个注册表、发布 `gable_capabilities`，且只有 `Start` 装配完所有模块后才就绪。
 - 初始脚手架：`App`、`Container`、模块生命周期、类型化配置、`glogs` 日志与稳定错误码。
 - `web`：Gin MVC、六字段包络、绑定/校验、request id、recovery、access log、springdoc 形状的 OpenAPI 3.0.1 与 Swagger UI。
 - CLI：`gable new`、`gable dev`、`gable version`。

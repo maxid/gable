@@ -74,7 +74,9 @@ func main() {
 | `web` | Gin MVC、包络、绑定/校验、OpenAPI 与 Swagger UI |
 | `tenant` | single/saas 解析、上下文、登录 Host 规则、代入 |
 | `orm` | sqlx Repository、租户守卫、迁移、gcosid 主键 |
-| `dsl` | gable/v1 资源、lint、DDL、低码 IR、apply、文件/数据库存储 |
+| `dsl` | gable/v1 资源、lint、DDL、低码 IR、apply、文件/数据库存储、diff/history/restore |
+| `health` | 存活/就绪探针，支持关键与可选依赖 |
+| `metrics` | Prometheus 文本格式的计数器、gauge 与直方图 |
 | `auth` | 密码/JWT/opaque token、refresh 轮换、passport 端点、OAuth2 authorize/token |
 | `cache` | 继承应用 namespace 的 gcache 构造器 |
 | `namespace` | gcache 驱动的 `gns.Store` 实现（内存或 Redis） |
@@ -232,6 +234,27 @@ gable dsl restore Model/task --revision 3 --dsn '...'
 删除不是隐式的：从集合里去掉一个资源，库里的行仍在。
 
 基于这些 revision 的 diff/dry-run 与 Api/Mcp kind 是下一刀。
+
+## 可观测
+
+两个注册表挂在 `App` 上，正好对应运维要问的两个问题；Web 服务负责挂载：
+
+```go
+app := gable.New(gable.WithConfig(cfg))
+app.Health().Add("database", true, func(ctx context.Context) error { return db.PingContext(ctx) })
+app.Metrics().Counter("orders_paid_total", "已支付订单。").Inc()
+
+server := web.New(web.WithHealth(app.Health()), web.WithMetrics(app.Metrics()))
+```
+
+- `GET /healthz` —— 存活。除进程正在关停外都返回 200：依赖挂了不该让健康的进程被重启。
+- `GET /readyz` —— 就绪。**关键**探针失败或 `Start` 尚未完成时返回 503，让负载均衡摘流量而不是杀进程；
+  探针报错会带上原因，panic 记为失败而不拖垮进程，非关键探针只上报不改变结论。
+- `GET /metrics` —— Prometheus 文本。服务端记录 `http_requests_total`（方法/路由/状态）、
+  `http_request_duration_seconds`（分桶）与 `http_inflight_requests`，App 发布 `gable_capabilities`。
+  标签用**路由模板**而不是路径，避免一个资源 id 造出一条时间序列。
+
+两个端点都在六字段包络之外：抓取器和编排器读的是状态码与文本，不是应用的响应契约。
 
 ## 命名空间
 

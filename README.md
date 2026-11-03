@@ -172,7 +172,9 @@ tables — altering one is a data-loss decision that belongs to explicit migrati
 | `rpc` | typed Client with local and HTTP/JSON bindings, shared-key auth, pluggable resolver; `rpc/nacos` resolves through the registry |
 | `mcp` | exposes operations as MCP tools over Streamable HTTP, with a shared-key transport check |
 | `ai` | tool-calling conversation loop over `gai`, with bounded rounds and bounded history |
-| `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply, file/database store |
+| `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply, file/database store, diff/history/restore |
+| `health` | liveness vs readiness, critical and optional probes |
+| `metrics` | Prometheus-text counters, gauges and histograms |
 | `auth` | password/JWT/opaque tokens, refresh rotation, passport endpoints, OAuth2 authorize/token |
 | `cache` | gcache constructor that inherits the application namespace |
 | `namespace` | gcache-backed `gns.Store` implementation (memory or Redis) |
@@ -340,6 +342,33 @@ database, so two instances saving at once cannot hand out the same one. Deleting
 resource is not implicit: dropping it from the set leaves the row in place.
 
 The diff/dry-run over those revisions and the Api/Mcp kinds are the next slice.
+
+## Observability
+
+Two registries live on the `App`, one per question an operator asks; the web server mounts
+them:
+
+```go
+app := gable.New(gable.WithConfig(cfg))
+app.Health().Add("database", true, func(ctx context.Context) error { return db.PingContext(ctx) })
+app.Metrics().Counter("orders_paid_total", "Paid orders.").Inc()
+
+server := web.New(web.WithHealth(app.Health()), web.WithMetrics(app.Metrics()))
+```
+
+- `GET /healthz` — liveness. It answers 200 unless the process is shutting down: a failing
+  dependency must not get a healthy process restarted.
+- `GET /readyz` — readiness. 503 while a **critical** probe fails or before `Start` has
+  finished, so a load balancer takes the instance out instead of killing it. A probe
+  returning an error is reported with its message; one that panics is a failure, not a
+  crash; a non-critical probe is reported but does not fail the report.
+- `GET /metrics` — Prometheus text. The server records `http_requests_total` (method, route,
+  status), `http_request_duration_seconds` (bucketed) and `http_inflight_requests`, and the
+  App publishes `gable_capabilities`. The route *pattern* is the label, never the path, so a
+  resource id cannot create one time series per row.
+
+Both endpoints are outside the JSON envelope: a scraper and an orchestrator read status
+codes and text, not the application's response contract.
 
 ## Namespaces
 

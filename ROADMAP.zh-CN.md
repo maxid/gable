@@ -33,4 +33,5 @@
 - [ ] 低代码资源编译到 LCDP IR
 - [x] CLI：`new`、`dev`、`version`
 - [ ] CLI：`gen`、`migrate`（库已存在，命令未接）
+- [x] 可观测：存活/就绪注册表、`/healthz`、`/readyz`、Prometheus 文本 `/metrics`（请求与延迟指标）
 - [ ] v1.0 API 稳定化
