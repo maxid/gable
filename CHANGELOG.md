@@ -11,6 +11,14 @@ All notable changes to this project will be documented in this file.
   signatures are unchanged (`gable.Module` is `gplugin.Module[*Container]` plus the
   optional lifecycle).
 
+- Validation and messages: `validate` reports every failing field as
+  `{field, rule, message}` (the same shape binding errors render) with overridable and
+  translatable messages and custom rules; `i18n.Bundle` resolves exact language → base
+  language → default → key, with `{name}` placeholders.
+- Pagination: `ctx.Page(allowedSorts...)` reads `page/size/sort/order` plus the vamis
+  aliases, clamps the size to 200 and rejects a sort column outside the whitelist with a
+  400 that lists the allowed values. The DSL data API now sorts only by the model's own
+  columns.
 - CLI: `gable inspect` prints the effective configuration (DSN password redacted),
   the derived namespace names and, with `--dir`, a DSL summary; `--format json` is the
   machine-readable form, and a missing config file falls back to the defaults unless

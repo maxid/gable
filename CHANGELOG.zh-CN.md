@@ -7,6 +7,8 @@
 ## [Unreleased]
 
 - `migrate`：Flyway 兼容的 `flyway_schema_history` store、按行 CRC32 校验和、版本化 SQL 加载、baseline/repair 与 MySQL/PostgreSQL 锁。
+- 校验与文案：`validate` 把每个失败字段报成 `{field, rule, message}`（与绑定错误同形状），消息可覆盖、可翻译，支持自定义规则；`i18n.Bundle` 按 精确语言 → 基础语言 → 默认 → 键 解析，支持 `{name}` 占位符。
+- 分页：`ctx.Page(allowedSorts...)` 同时读取 `page/size/sort/order` 与 vamis 别名，size 截断到 200，排序列不在白名单时返回 400 并列出允许值。DSL data API 现在只按模型自己的列排序。
 - CLI：`gable inspect` 输出生效配置（DSN 密码打码）、派生 namespace 名称，带 `--dir` 时附 DSL 摘要；`--format json` 供脚本读取；未显式给 `--config` 且文件不存在时回落到默认值。
 - ORM 事务：`db.WithTx` 在 `Tx` 上执行回调，`tx.Repo[T]` 把同一套仓储代码（租户守卫、删除标记、Preload）绑到事务上。返回 nil 提交、错误回滚、panic 回滚后继续上抛。
 - 可观测：`health` 注册表（存活 vs 就绪、关键与可选探针、panic 记为失败）与零依赖的 `metrics` 注册表（Prometheus 文本）。`web.WithHealth`/`web.WithMetrics` 挂载 `/healthz`、`/readyz`、`/metrics`，服务端记录请求数、在途请求与按**路由模板**分桶的延迟（不用路径）。`App` 持有两个注册表、发布 `gable_capabilities`，且只有 `Start` 装配完所有模块后才就绪。

@@ -75,6 +75,8 @@ func main() {
 | `tenant` | single/saas 解析、上下文、登录 Host 规则、代入 |
 | `orm` | sqlx Repository、租户守卫、迁移、gcosid 主键 |
 | `dsl` | gable/v1 资源、lint、DDL、低码 IR、apply、文件/数据库存储、diff/history/restore |
+| `validate` | 结构体校验，输出可进包络的字段列表 |
+| `i18n` | 多语言消息包，支持地区与默认回落 |
 | `health` | 存活/就绪探针，支持关键与可选依赖 |
 | `metrics` | Prometheus 文本格式的计数器、gauge 与直方图 |
 | `cli` | `new`、`dev`、`dsl`、`migrate`、`inspect`、`version` |
@@ -248,6 +250,45 @@ gable dsl restore Model/task --revision 3 --dsn '...'
 删除不是隐式的：从集合里去掉一个资源，库里的行仍在。
 
 基于这些 revision 的 diff/dry-run 与 Api/Mcp kind 是下一刀。
+
+## 校验与文案
+
+```go
+validator := validate.New()          // 英文默认消息，字段名取自 json tag
+validator.SetMessage("min", "至少 %s 个字符")
+validator.Register("slug", "必须是小写 slug", isSlug)
+
+if issues := validator.Struct(payload); len(issues) > 0 {
+    return issues                    // 400 invalid_argument，data 为 {fields:[{field,rule,message}]}
+}
+```
+
+每个失败字段都会报出来，错误文本是一行可直接进日志；包络里的 data 逐条给出
+`field`/`rule`/`message`，与 Gin 绑定错误同形状——无论哪一层拒绝，客户端只解析一种格式。
+自定义规则注册一次即带消息；`Translator`（或 nil）决定语言，`i18n.Bundle` 是它通常读取的包：
+
+```go
+bundle := i18n.New("en")
+_ = bundle.Load("zh", []byte("required: 必填\nemail: 邮箱格式不正确\n"))
+bundle.Translate("zh-CN", "email", nil) // 邮箱格式不正确：地区回落到基础语言
+```
+
+解析顺序是精确语言 → 基础语言（`zh-CN` → `zh`）→ 默认语言 → 键本身，所以缺文案会显示键而不是空串。
+占位符写作 `{name}`，未知占位符保持原样而不是被清空。
+
+## 分页
+
+```go
+page, err := ctx.Page("name", "created_at") // 排序白名单
+if err != nil {
+    return err // 400，并列出允许的列
+}
+rows, err := repo.Query().OrderBy(page.Sort, page.Desc).Limit(page.Limit()).Offset(page.Offset()).All(ctx)
+```
+
+`page`、`size`、`sort`、`order` 与现网前端发送的 vamis 别名（`perPage`、`orderBy`、`orderDir`）一起读取。
+排序列不在白名单内返回 400 并列出允许值——静默忽略会返回错误顺序，看起来像数据 bug。
+`size` 超过 200 是**截断**而不是报错：要一万行是性能问题，不是值得 400 的客户端错误。
 
 ## 可观测
 

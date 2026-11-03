@@ -173,6 +173,8 @@ tables — altering one is a data-loss decision that belongs to explicit migrati
 | `mcp` | exposes operations as MCP tools over Streamable HTTP, with a shared-key transport check |
 | `ai` | tool-calling conversation loop over `gai`, with bounded rounds and bounded history |
 | `dsl` | gable/v1 resources, lint, DDL, low-code IR, apply, file/database store, diff/history/restore |
+| `validate` | struct validation into a field list the envelope can carry |
+| `i18n` | per-language message bundles with region and default fallbacks |
 | `health` | liveness vs readiness, critical and optional probes |
 | `metrics` | Prometheus-text counters, gauges and histograms |
 | `cli` | `new`, `dev`, `dsl`, `migrate`, `inspect`, `version` |
@@ -358,6 +360,50 @@ database, so two instances saving at once cannot hand out the same one. Deleting
 resource is not implicit: dropping it from the set leaves the row in place.
 
 The diff/dry-run over those revisions and the Api/Mcp kinds are the next slice.
+
+## Validation and messages
+
+```go
+validator := validate.New()          // English defaults, field names from json tags
+validator.SetMessage("min", "at least %s characters")
+validator.Register("slug", "must be a lowercase slug", isSlug)
+
+if issues := validator.Struct(payload); len(issues) > 0 {
+    return issues                    // 400 invalid_argument, with {fields:[{field,rule,message}]}
+}
+```
+
+Every failing field is reported, message text is a one-liner a log can carry, and the
+envelope data lists `field`/`rule`/`message` per entry — the same shape Gin's binding errors
+render, so a client parses one format whichever layer rejected the request. A custom rule is
+registered once with its message; a `Translator` (or a nil translator) decides the language,
+and `i18n.Bundle` is the bundle it typically reads:
+
+```go
+bundle := i18n.New("en")
+_ = bundle.Load("zh", []byte("required: 必填\nemail: 邮箱格式不正确\n"))
+bundle.Translate("zh-CN", "email", nil) // 邮箱格式不正确: region falls back to its base language
+```
+
+Resolution is exact language → base language (`zh-CN` → `zh`) → default language → the key
+itself, so a missing message shows up as the key instead of an empty string. Placeholders are
+`{name}`; an unknown one is left visible rather than blanked.
+
+## Pagination
+
+```go
+page, err := ctx.Page("name", "created_at") // the sort whitelist
+if err != nil {
+    return err // 400 naming the allowed columns
+}
+rows, err := repo.Query().OrderBy(page.Sort, page.Desc).Limit(page.Limit()).Offset(page.Offset()).All(ctx)
+```
+
+`page`, `size`, `sort` and `order` are read together with the vamis aliases the existing
+frontend sends (`perPage`, `orderBy`, `orderDir`). A sort column outside the whitelist is a
+400 that lists the allowed values: ignoring it silently returns the wrong order, which looks
+like a data bug. Size is clamped to 200 instead of rejected — asking for 10 000 rows is a
+performance problem, not a client mistake worth an error.
 
 ## Observability
 
