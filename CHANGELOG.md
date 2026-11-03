@@ -11,6 +11,10 @@ All notable changes to this project will be documented in this file.
   signatures are unchanged (`gable.Module` is `gplugin.Module[*Container]` plus the
   optional lifecycle).
 
+- ORM transactions: `db.WithTx` runs a callback against a `Tx`, and `tx.Repo[T]`
+  binds the same repository code (tenant guard, delete markers, Preload) to the
+  transaction. Returning nil commits; an error rolls back; a panic rolls back and
+  is re-raised instead of being swallowed.
 - Observability: `health` registry (liveness vs readiness, critical and optional
   probes, panicking probes reported as failures) and a dependency-free `metrics`
   registry rendering Prometheus text. `web.WithHealth`/`web.WithMetrics` mount

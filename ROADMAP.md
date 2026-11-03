@@ -11,6 +11,7 @@
 - [x] Tenant: single/saas modes, host login rules, fail-closed scope, impersonation
 - [x] ORM core: models, query builder, CRUD, tenant guard, gcosid keys, AutoMigrate (MySQL/PostgreSQL)
 - [x] ORM: relations (`belongs_to`/`has_many` + `Preload`), soft delete/retain guards with `Restore`/`Purge`
+- [x] ORM: `WithTx` transactions with repositories bound to the transaction
 - [ ] ORM: ClickHouse/DM/TDengine dialects
 - [x] Pilot: tenant-scoped task board (single/saas, memory/ORM, OpenAPI)
 - [x] DSL: Model/Table/Form/Page, lint, DDL/IR preview, idempotent apply (file store)

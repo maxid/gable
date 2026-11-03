@@ -170,6 +170,19 @@ orders, err := orders.Query().
     All(ctx)
 ```
 
+事务用回调表达，回调里的仓储和外面的是同一套代码：
+
+```go
+err := db.WithTx(ctx, func(ctx context.Context, tx *orm.Tx) error {
+    accounts, _ := tx.Repo[Account]("account")
+    return accounts.Update(ctx, debited) // 以及后续任意语句
+})
+```
+
+返回 nil 即提交；返回错误或 panic 都回滚——panic 会继续向上抛，不会被吞掉，
+调用方的 defer 清理不会误以为事务成功。租户守卫与删除标记在事务内同样生效，
+因为只是换了一个执行器，仓储代码没变。
+
 关系是元数据不是列。`Preload` 对**整个结果集**每个关系只查一次，绝不按行查；
 被加载的关联读取沿用同一套租户与逻辑删除守卫。没有懒加载，handler 不会意外打出 N+1。
 

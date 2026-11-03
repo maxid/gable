@@ -13,6 +13,7 @@
 - [x] ORM 核心：模型、查询构造器、CRUD、租户守卫、gcosid 主键、AutoMigrate（MySQL/PostgreSQL）
 - [x] Migrate：Flyway 兼容历史、CRC32 校验和、baseline/repair（MySQL/PostgreSQL）
 - [x] ORM：关系（`belongs_to`/`has_many` + `Preload`）、软删/保留标志守卫与 `Restore`/`Purge`
+- [x] ORM：`WithTx` 事务，仓储可绑定到事务
 - [ ] ORM：ClickHouse/达梦/TDengine 方言
 - [x] Pilot：租户任务看板（single/saas、内存/ORM、OpenAPI）
 - [x] DSL：Model/Table/Form/Page、lint、DDL/IR preview、幂等 apply（file store）

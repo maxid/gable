@@ -268,6 +268,21 @@ orders, err := orders.Query().
     All(ctx)
 ```
 
+Transactions take a callback, and the repositories inside it are ordinary
+repositories:
+
+```go
+err := db.WithTx(ctx, func(ctx context.Context, tx *orm.Tx) error {
+    accounts, _ := tx.Repo[Account]("account")
+    return accounts.Update(ctx, debited) // and any second statement
+})
+```
+
+Returning nil commits; an error or a panic rolls back — and a panic is re-raised
+rather than swallowed, so a caller's deferred cleanup never runs as if the work
+succeeded. The tenant guard and delete markers work inside the transaction because
+it is the same repository code, only a different executor.
+
 A relation is metadata, not a column. `Preload` costs one query per relation
 for the whole result set — never one per row — and the related read keeps the
 same tenant and delete-marker guards as the query that asked for it. There is
