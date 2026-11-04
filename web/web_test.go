@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/maxid/gable/metrics"
 	"github.com/maxid/gable/tenant"
 	"github.com/maxid/gable/validate"
+	"github.com/maxid/glogs"
 )
 
 func TestMain(m *testing.M) {
@@ -473,5 +475,45 @@ func TestHealthAndMetricsEndpoints(t *testing.T) {
 	}
 	if strings.Contains(scraped.Body.String(), "/hello/123") {
 		t.Fatal("metrics must not label by path")
+	}
+}
+
+func TestRequestIDReachesHandlerAndAccessLog(t *testing.T) {
+	dir := t.TempDir()
+	cfg := glogs.DefaultConfig("web-test")
+	cfg.Dir = dir
+	for name, channel := range cfg.Channels {
+		channel.Path = filepath.Join(dir, "common", string(name), string(name)+".log")
+		cfg.Channels[name] = channel
+	}
+	logger, err := glogs.New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer logger.Close()
+
+	server := newTestServer(WithLogger(logger))
+	server.Router().GET("/ctx-log", func(c *Context) error {
+		logger.Channel(glogs.ChannelApp).InfoContext(c.Request().Context(), "handler log")
+		return c.NoContent()
+	})
+	recorder := perform(server, http.MethodGet, "/ctx-log", nil, map[string]string{"X-Request-Id": "ctx-1"})
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", recorder.Code)
+	}
+
+	appLog, err := os.ReadFile(cfg.Channels[glogs.ChannelApp].Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(appLog), "request_id=ctx-1") {
+		t.Fatalf("handler context missing request_id: %s", appLog)
+	}
+	accessLog, err := os.ReadFile(cfg.Channels[glogs.ChannelAccess].Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(accessLog), "request_id=ctx-1") {
+		t.Fatalf("access log missing request_id: %s", accessLog)
 	}
 }

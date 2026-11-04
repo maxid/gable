@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"runtime/debug"
 	"strconv"
 	"time"
@@ -24,6 +25,8 @@ func (s *Server) requestIDMiddleware() gin.HandlerFunc {
 		}
 		c.Set(requestIDKey, id)
 		c.Header("X-Request-Id", id)
+		ctx := glogs.WithFields(c.Request.Context(), slog.String("request_id", id))
+		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	}
 }
@@ -80,13 +83,12 @@ func (s *Server) accessLogMiddleware() gin.HandlerFunc {
 		if logger == nil {
 			return
 		}
-		logger.Channel(glogs.ChannelAccess).Info("http request",
+		logger.Channel(glogs.ChannelAccess).InfoContext(c.Request.Context(), "http request",
 			"method", c.Request.Method,
 			"path", c.Request.URL.Path,
 			"route", c.FullPath(),
 			"status", c.Writer.Status(),
 			"duration_ms", elapsed.Milliseconds(),
-			"request_id", c.GetString(requestIDKey),
 			"client_ip", c.ClientIP(),
 		)
 	}
