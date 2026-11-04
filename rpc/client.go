@@ -113,7 +113,10 @@ func (c *HTTPClient) invoke(ctx context.Context, method string, body []byte) ([]
 
 	response, err := c.hc.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrNoEndpoint, err)
+		// Preserve the underlying error as well as ErrNoEndpoint: a caller
+		// must still be able to detect context.DeadlineExceeded/Canceled with
+		// errors.Is across the transport boundary.
+		return nil, fmt.Errorf("%w: %w", ErrNoEndpoint, err)
 	}
 	defer response.Body.Close()
 

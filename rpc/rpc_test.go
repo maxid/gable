@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/maxid/gable/rpc"
 )
@@ -158,5 +159,26 @@ func TestStaticResolverTrimsAndRejectsEmpty(t *testing.T) {
 	}
 	if _, err := (rpc.StaticResolver{}).Resolve(context.Background(), "any"); !errors.Is(err, rpc.ErrNoEndpoint) {
 		t.Fatalf("empty base err = %v", err)
+	}
+}
+
+func TestHTTPClientPreservesDeadline(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(100 * time.Millisecond)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	var response EchoResponse
+	err := rpc.NewHTTPClient(server.URL).Call(ctx, "demo.slow", EchoRequest{}, &response)
+	if err == nil {
+		t.Fatal("expected deadline error")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want deadline", err)
+	}
+	if !errors.Is(err, rpc.ErrNoEndpoint) {
+		t.Fatalf("err = %v, want ErrNoEndpoint", err)
 	}
 }
