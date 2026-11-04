@@ -62,22 +62,22 @@ func TestPagination(t *testing.T) {
 }
 
 func TestUpsertMySQL(t *testing.T) {
-	sql, err := MySQL().Upsert("xdmp_iam_user", []string{"tenant_id", "username"}, []string{"tenant_id", "username", "password", "salt"})
+	sql, err := MySQL().Upsert("demo_user", []string{"tenant_id", "username"}, []string{"tenant_id", "username", "password", "salt"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "INSERT INTO `xdmp_iam_user` (`tenant_id`, `username`, `password`, `salt`) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE `password` = VALUES(`password`), `salt` = VALUES(`salt`)"
+	want := "INSERT INTO `demo_user` (`tenant_id`, `username`, `password`, `salt`) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE `password` = VALUES(`password`), `salt` = VALUES(`salt`)"
 	if sql != want {
 		t.Fatalf("sql =\n%s\nwant\n%s", sql, want)
 	}
 }
 
 func TestUpsertPostgres(t *testing.T) {
-	sql, err := Postgres().Upsert("xdmp_iam_user", []string{"tenant_id", "username"}, []string{"tenant_id", "username", "password", "salt"})
+	sql, err := Postgres().Upsert("demo_user", []string{"tenant_id", "username"}, []string{"tenant_id", "username", "password", "salt"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `INSERT INTO "xdmp_iam_user" ("tenant_id", "username", "password", "salt") VALUES ($1, $2, $3, $4) ON CONFLICT ("tenant_id", "username") DO UPDATE SET "password" = EXCLUDED."password", "salt" = EXCLUDED."salt"`
+	want := `INSERT INTO "demo_user" ("tenant_id", "username", "password", "salt") VALUES ($1, $2, $3, $4) ON CONFLICT ("tenant_id", "username") DO UPDATE SET "password" = EXCLUDED."password", "salt" = EXCLUDED."salt"`
 	if sql != want {
 		t.Fatalf("sql =\n%s\nwant\n%s", sql, want)
 	}
