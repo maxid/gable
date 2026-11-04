@@ -136,3 +136,57 @@ func TestConcurrentUse(t *testing.T) {
 		t.Fatalf("histogram lost updates:\n%s", text)
 	}
 }
+
+func TestScrapeTimeFunctions(t *testing.T) {
+	registry := metrics.New()
+	counter := 0
+	registry.CounterFunc("cache_hits_total", "Hits.", func() float64 {
+		counter++
+		return float64(counter)
+	})
+	gauge := 7.0
+	registry.GaugeFunc("cache_entries", "Entries.", func() float64 { return gauge })
+
+	first := registry.Render()
+	if !strings.Contains(first, "# TYPE cache_hits_total counter") ||
+		!strings.Contains(first, "cache_hits_total 1") {
+		t.Fatalf("counter func missing:\n%s", first)
+	}
+	if !strings.Contains(first, "# TYPE cache_entries gauge") ||
+		!strings.Contains(first, "cache_entries 7") {
+		t.Fatalf("gauge func missing:\n%s", first)
+	}
+	gauge = 9
+	if second := registry.Render(); !strings.Contains(second, "cache_entries 9") {
+		t.Fatalf("gauge func was not read at scrape time:\n%s", second)
+	}
+}
+
+func TestScrapeTimeFunctionPanicIsContained(t *testing.T) {
+	registry := metrics.New()
+	registry.GaugeFunc("broken", "Broken.", func() float64 { panic("boom") })
+	if text := registry.Render(); !strings.Contains(text, "broken 0") {
+		t.Fatalf("panic was not contained:\n%s", text)
+	}
+}
+
+func TestScrapeTimeFunctionRejectsDuplicates(t *testing.T) {
+	mustPanic := func(name string, fn func()) {
+		t.Helper()
+		defer func() {
+			if recover() == nil {
+				t.Fatalf("%s did not panic", name)
+			}
+		}()
+		fn()
+	}
+	registry := metrics.New()
+	registry.CounterFunc("x_total", "X.", func() float64 { return 1 })
+	mustPanic("counter func duplicate", func() {
+		registry.CounterFunc("x_total", "X.", func() float64 { return 2 })
+	})
+	mustPanic("counter/gauge collision", func() {
+		registry.GaugeFunc("x_total", "X.", func() float64 { return 2 })
+	})
+	mustPanic("nil func", func() { registry.GaugeFunc("nil", "Nil.", nil) })
+}

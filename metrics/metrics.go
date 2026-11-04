@@ -21,18 +21,22 @@ var DefaultBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5,
 
 // Registry holds the instruments of one process. It is safe for concurrent use.
 type Registry struct {
-	mu         sync.RWMutex
-	counters   map[string]*Counter
-	gauges     map[string]*Gauge
-	histograms map[string]*Histogram
+	mu           sync.RWMutex
+	counters     map[string]*Counter
+	gauges       map[string]*Gauge
+	histograms   map[string]*Histogram
+	counterFuncs map[string]*metricFunc
+	gaugeFuncs   map[string]*metricFunc
 }
 
 // New returns an empty registry.
 func New() *Registry {
 	return &Registry{
-		counters:   map[string]*Counter{},
-		gauges:     map[string]*Gauge{},
-		histograms: map[string]*Histogram{},
+		counters:     map[string]*Counter{},
+		gauges:       map[string]*Gauge{},
+		histograms:   map[string]*Histogram{},
+		counterFuncs: map[string]*metricFunc{},
+		gaugeFuncs:   map[string]*metricFunc{},
 	}
 }
 
@@ -86,6 +90,56 @@ func (r *Registry) Histogram(name, help string, buckets []float64, labels ...str
 	return histogram
 }
 
+// CounterFunc registers a value read at scrape time. It is for snapshots owned
+// by another component (cache counters, queue depth) that should not require a
+// background goroutine. fn must be cheap and must not call back into the
+// registry; a panic is contained and rendered as zero.
+func (r *Registry) CounterFunc(name, help string, fn func() float64) {
+	mustValidate(name, nil)
+	if fn == nil {
+		panic("metrics: nil CounterFunc")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.counters[name]; exists {
+		panic(fmt.Sprintf("metrics: counter %q already registered", name))
+	}
+	if _, exists := r.counterFuncs[name]; exists {
+		panic(fmt.Sprintf("metrics: counter %q already registered", name))
+	}
+	if _, exists := r.gauges[name]; exists {
+		panic(fmt.Sprintf("metrics: gauge %q already registered", name))
+	}
+	if _, exists := r.gaugeFuncs[name]; exists {
+		panic(fmt.Sprintf("metrics: gauge %q already registered", name))
+	}
+	r.counterFuncs[name] = &metricFunc{name: name, help: help, fn: fn, counter: true}
+}
+
+// GaugeFunc registers a value read at scrape time. See CounterFunc for the
+// callback contract.
+func (r *Registry) GaugeFunc(name, help string, fn func() float64) {
+	mustValidate(name, nil)
+	if fn == nil {
+		panic("metrics: nil GaugeFunc")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.gauges[name]; exists {
+		panic(fmt.Sprintf("metrics: gauge %q already registered", name))
+	}
+	if _, exists := r.gaugeFuncs[name]; exists {
+		panic(fmt.Sprintf("metrics: gauge %q already registered", name))
+	}
+	if _, exists := r.counters[name]; exists {
+		panic(fmt.Sprintf("metrics: counter %q already registered", name))
+	}
+	if _, exists := r.counterFuncs[name]; exists {
+		panic(fmt.Sprintf("metrics: counter %q already registered", name))
+	}
+	r.gaugeFuncs[name] = &metricFunc{name: name, help: help, fn: fn}
+}
+
 // Handler serves every instrument in the Prometheus text format.
 func (r *Registry) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -109,11 +163,21 @@ func (r *Registry) Render() string {
 	for _, histogram := range r.histograms {
 		histograms = append(histograms, histogram)
 	}
+	counterFuncs := make([]*metricFunc, 0, len(r.counterFuncs))
+	for _, fn := range r.counterFuncs {
+		counterFuncs = append(counterFuncs, fn)
+	}
+	gaugeFuncs := make([]*metricFunc, 0, len(r.gaugeFuncs))
+	for _, fn := range r.gaugeFuncs {
+		gaugeFuncs = append(gaugeFuncs, fn)
+	}
 	r.mu.RUnlock()
 
 	sort.Slice(counters, func(i, j int) bool { return counters[i].name < counters[j].name })
 	sort.Slice(gauges, func(i, j int) bool { return gauges[i].name < gauges[j].name })
 	sort.Slice(histograms, func(i, j int) bool { return histograms[i].name < histograms[j].name })
+	sort.Slice(counterFuncs, func(i, j int) bool { return counterFuncs[i].name < counterFuncs[j].name })
+	sort.Slice(gaugeFuncs, func(i, j int) bool { return gaugeFuncs[i].name < gaugeFuncs[j].name })
 
 	var builder strings.Builder
 	for _, counter := range counters {
@@ -125,7 +189,34 @@ func (r *Registry) Render() string {
 	for _, histogram := range histograms {
 		histogram.render(&builder)
 	}
+	for _, fn := range counterFuncs {
+		fn.render(&builder)
+	}
+	for _, fn := range gaugeFuncs {
+		fn.render(&builder)
+	}
 	return builder.String()
+}
+
+type metricFunc struct {
+	name    string
+	help    string
+	fn      func() float64
+	counter bool
+}
+
+func (f *metricFunc) render(builder *strings.Builder) {
+	kind := "gauge"
+	if f.counter {
+		kind = "counter"
+	}
+	fmt.Fprintf(builder, "# HELP %s %s\n# TYPE %s %s\n", f.name, f.help, f.name, kind)
+	builder.WriteString(f.name + " " + formatValue(safeValue(f.fn)) + "\n")
+}
+
+func safeValue(fn func() float64) (value float64) {
+	defer func() { _ = recover() }()
+	return fn()
 }
 
 // Counter is a monotonically increasing value.
