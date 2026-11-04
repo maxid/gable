@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- orm/dialect: canonical SQL dialect layer with MySQL/PostgreSQL/ClickHouse/达梦,
+  bound pagination, upsert and safe identifier quoting.
+
+
 - Assembly delegates to `gplugin`: `App.Register` adds the module to a
   `gplugin.Set[*Container]` and `App.Start` lets the assembly resolve the closure,
   order it deterministically and roll back a failed start. The 90-line

@@ -13,7 +13,8 @@
 - [x] ORM core: models, query builder, CRUD, tenant guard, gcosid keys, AutoMigrate (MySQL/PostgreSQL)
 - [x] ORM: relations (`belongs_to`/`has_many` + `Preload`), soft delete/retain guards with `Restore`/`Purge`
 - [x] ORM: `WithTx` transactions with repositories bound to the transaction
-- [ ] ORM: ClickHouse/DM/TDengine dialects
+- [x] orm/dialect: shared SQL dialect layer (MySQL/PostgreSQL/ClickHouse/达梦)
+- [ ] ORM: ClickHouse/达梦/TDengine adapters (query builder/AutoMigrate)
 - [x] Pilot: tenant-scoped task board (single/saas, memory/ORM, OpenAPI)
 - [x] Pilot: platform-shaped modules in a gable assembly (`examples/app`), with the four adoption criteria asserted
 - [x] DSL: Model/Table/Form/Page, lint, DDL/IR preview, idempotent apply (file store)
